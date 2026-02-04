@@ -1,0 +1,19 @@
+dataset:
+  name: set
+
+ood_dataset:
+  name: oods
+
+network:
+    name: net
+
+pipeline:
+  name: pipeline
+
+evaluator:
+  name: evaluator
+
+postprocessor:
+  name: method
+  postprocessor_args: param
+  
