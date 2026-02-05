@@ -1,2 +1,12 @@
-dataset: ood
-epoch: epoch
+csv_name: ood.csv
+
+header:
+  dataset: ood
+  epoch: epoch
+
+columns:
+  FPR@95: fpr
+  AUROC: auc
+  ACC: acc
+  AUPR_IN:
+  AUPR_OUT:

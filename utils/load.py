@@ -1,14 +1,17 @@
 import yaml
 from pathlib import Path
 import pandas as pd
-from utils.config import sample_config
+from configs.config import default_parse_config
 
-METRICS_COLUMNS = ('FPR@95', 'AUROC', 'AUPR_IN', 'AUPR_OUT', 'ACC')
 OOD_CSV = 'ood.csv'
-CONFIG_YML = 'config.yml'
+CONFIG_YML 'config.yml'
+
+METRICS_COLUMNS = default_parse_config['csv']['columns']
+CSV_HEADER = default_parse_config['csv']['header']
+PARAMS_KEYS = default_parse_config['params']
 
 
-def read_csv(path, name=OOD_CSV):
+def read_csv(path, name=OOD_CSV, index_dict=CSV_HEADER, metrics=METRICS_COLUMNS, **kw):
 
     path = Path(path)
 
@@ -23,19 +26,40 @@ def read_csv(path, name=OOD_CSV):
 
     df = pd.read_csv(path)
 
-    index_labels = df.columns[~df.columns.isin(METRICS_COLUMNS)]
+    index_labels = df.columns[~df.columns.isin(list(metrics))]
 
     df.set_index(list(index_labels), inplace=True, append=False)
 
-    if df.index.name:
-        df.index.rename('ood', inplace=True)
+    if len(df.index.names) == 1:
+        if df.index.name in index_dict:
+            pass
+            df.index.rename(index_dict[df.index.name], inplace=True)
     else:
-        df.index.rename({'dataset': 'ood'}, inplace=True)
+        df.index.rename(index_dict, inplace=True)
 
     return df
 
 
-def load_config(path, name=CONFIG_YML):
+class ConfigLoader(yaml.SafeLoader):
+    pass
+
+
+def config_as_dict(loader, node):
+    return loader.construct_mapping(node, deep=True)
+
+
+ConfigLoader.add_constructor("tag:yaml.org,2002:python/object/new:openood.utils.config.Config",
+                             config_as_dict)
+
+
+def load_raw_config(path):
+    with open(path) as f:
+        data = yaml.load(f, Loader=ConfigLoader)
+
+    return data['state']
+
+
+def load_config(path, name=CONFIG_YML, **kw):
 
     path = Path(path)
 
@@ -45,71 +69,68 @@ def load_config(path, name=CONFIG_YML):
     if path.suffix != '.yml':
         raise ValueError('.yml expected, got {}'.format(path.suffix))
 
-    with open(path) as f:
-        c = yaml.load(f, Loader=yaml.UnsafeLoader)  # DANGEROUS on untrusted files
+    c = load_raw_config(path)
+    # with open(path) as f:
+    #    c = yaml.load(f, Loader=yaml.UnsafeLoader)  # DANGEROUS on untrusted files
 
     return c
 
 
-def df_exp(path, csv_name=OOD_CSV, yml_name=CONFIG_YML, key_dict={}, index_dict={}, index_order=[]):
-    path = Path(path)
+def sample_config(config, key_dict=PARAMS_KEYS, **kw):
+    """sample config dict wrt a key_dict
 
-    if not path.exists() or not path.is_dir():
-        raise FileNotFoundError(path)
-
-    df = read_csv(path, name=csv_name)
-
-    try:
-        config = load_config(path, name=yml_name)
-    except FileNotFoundError:
-        config = {}
-
-    params = dict(sample_config(config, key_dict))
-
-    for k, v in params.items():
-        df[k] = v
-
-    df.set_index(list(params), append=True, inplace=True)
-
-    return df
+    --config is a config dict (loaded from config.yml)
 
 
-def fetch_results(directory='./results', csv_name=OOD_CSV, yml_name=CONFIG_YML):
+    -- key_dict is a dict-like tree
+
+    Return: a dict on the form key_name: val if
+
+    k1 : k2: key_name is in key_dict and k1: k2: key_val is in
+    config
+
+    """
+
+    if isinstance(key_dict, dict):
+        for k in key_dict:
+            if k in config:
+                yield from sample_config(config[k], key_dict=key_dict[k])
+
+        return
+
+    if isinstance(config, dict):
+        for k in config:
+            yield from sample_config(config[k], key_dict='{}_{}'.format(key_dict, k))
+
+        return
+
+    yield key_dict, config
+
+
+def fetch_results(directory='./results', ood_csv=OOD_CSV, config_yml=CONFIG_YML, **kw):
 
     d = Path(directory)
 
     if not d.exists() or not d.is_dir():
         raise FileNotFoundError(d)
 
-    for csv_file in d.glob('**/{}'.format(csv_name)):
+    for csv_file in d.glob('**/{}'.format(ood_csv)):
 
-        df = read_csv(csv_file)
+        df = read_csv(csv_file, **kw)
         try:
-            c = load_config(csv_file.parent)
+            c = load_config(csv_file.parent, name=config_yml)
         except FileNotFoundError:
             c = {'dataset': {'name': 'unknown'}}
 
+        c = dict(sample_config(c, **kw))
+
         for k in c:
-            if isinstance(c[k], dict) and 'name' in c[k]:
-                df[k] = c[k]['name']
-                df.set_index(k, append=True, inplace=True)
+            df[k] = c[k]
+            df.set_index(k, append=True, inplace=True)
 
         yield df
 
 
 if __name__ == '__main__':
 
-    import sys
-
-    with open('utils/keys.yml') as f:
-        config_dict = yaml.load(f, Loader=yaml.SafeLoader)
-
-    key_dict = config_dict['config_parser']
-
-    path = sys.argv[-1]
-    if not path:
-        path = '/tmp'
-
-    df = df_exp(path, key_dict=key_dict)
-
-    print(df.head().to_string())
+    df = fetch_results()
