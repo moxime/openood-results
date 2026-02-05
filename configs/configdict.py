@@ -13,9 +13,14 @@ class ConfigDict(dict):
         super().__init__()
 
         if '_registering_default' not in kw:
-            self._update(0, files=FILES_YML, csv=CSV_YML, keys=KEYS_YML)
+            for yml_file in (FILES_YML, CSV_YML, KEYS_YML):
+                self._update(0, **yaml.load(open(yml_file), Loader=yaml.SafeLoader))
 
         self.deepupdate(*a, **kw)
+
+    def __repr__(self):
+
+        return 'Conf{}'.format(super().__repr__())
 
     def update(self, *a, **kw):
 
@@ -32,7 +37,6 @@ class ConfigDict(dict):
 
         for k, v in kw.items():
 
-            #            print(k, depth)
             if isinstance(v, dict):
                 v['_registering_default'] = False
                 if depth == 1 or k not in self:
@@ -63,7 +67,7 @@ class ConfigDict(dict):
 if __name__ == '__main__':
     print('**** default')
     c = ConfigDict(foo={'baz': 1, 'bar': 2})
-    print(c['foo'], c['files'])
+    print(c)
 
     print('**** deep update')
     c.deepupdate(foo={'baz': 2}, files={'ood_csv': 'foo.csv'})

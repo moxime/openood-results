@@ -1,19 +1,20 @@
-dataset:
-  name: set
+config_keys:
+  dataset:
+    name: set
 
-ood_dataset:
-  name: oods
+  ood_dataset:
+    name: oods
 
-network:
+  network:
     name: net
 
-pipeline:
-  name: pipeline
+  pipeline:
+    name: pipeline
 
-evaluator:
-  name: evaluator
+  evaluator:
+    name: evaluator
 
-postprocessor:
-  name: method
-  postprocessor_args: param
+  postprocessor:
+    name: method
+    postprocessor_args: param
   

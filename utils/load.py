@@ -85,7 +85,6 @@ def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
     config
 
     """
-
     if isinstance(config_keys, dict):
         for k in config_keys:
             if k in parsed_config:
@@ -154,6 +153,6 @@ def fetch_results(directory='./results', **kw):
 if __name__ == '__main__':
     from configs.configdict import ConfigDict
 
-    df_ = list(fetch_results(config_keys=ConfigDict()['keys']))
+    df_ = list(fetch_results(**ConfigDict()))
 
     index_names = set(sum([list(df.index.names) for df in df_], start=[]))
