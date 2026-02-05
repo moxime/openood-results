@@ -1,6 +1,6 @@
 import argparse
 import yaml
-from configs.config import default_config
+from configs.config import default_parse_config
 
 
 def add_filter_args_to_parser(parser, key_dict, *parsed_configs):
