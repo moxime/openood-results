@@ -1,0 +1,11 @@
+loggers:
+  __default__: warning
+  __main__: info
+  utils.logger: warning
+  utils.load: 
+  utils.tables:
+
+results_directory: ./results
+
+ood_csv: ood.csv
+config_yml: config.yml

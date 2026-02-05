@@ -1,10 +1,14 @@
+import logging
 import yaml
 import pathlib
 import argparse
 
 KEYS_YML = 'configs/config_keys.yml'
 CSV_YML = 'configs/table.yml'
-FILES_YML = 'configs/files.yml'
+MAIN_YML = 'configs/main.yml'
+
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigDict(dict):
@@ -14,7 +18,7 @@ class ConfigDict(dict):
         super().__init__()
 
         if '_registering_default' not in kw:
-            for yml_file in (FILES_YML, CSV_YML, KEYS_YML):
+            for yml_file in (MAIN_YML, CSV_YML, KEYS_YML):
                 self._update(0, **yaml.load(open(yml_file), Loader=yaml.SafeLoader))
 
         self.deepupdate(*a, **kw)

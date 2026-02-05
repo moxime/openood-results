@@ -1,3 +1,4 @@
+import logging
 import time
 import yaml
 from pathlib import Path
@@ -6,6 +7,9 @@ import pandas as pd
 OOD_CSV = 'ood.csv'
 CONFIG_YML = 'config.yml'
 CONFIG_KEYS = {'dataset': {'name': 'set'}, 'postprocessor': {'name': 'method'}}
+
+
+logger = logging.getLogger(__name__)
 
 
 def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch'},  **kw):
@@ -107,10 +111,15 @@ def df_exp(path, **kw):
         raise FileNotFoundError(path)
 
     df = read_csv(path, **kw)
+
+    logger.debug('Found a csv in {}'.format(path))
+
     try:
         config = load_config(path, **kw)
+        logger.debug('Found a config file in {}'.format(path))
     except FileNotFoundError:
         config = {'dataset': {'name': 'unknown'}}
+        logger.debug('Did not find a config file in {}, default one is used'.format(path))
 
     parsed_config = dict(sample_config(config, **kw))
 

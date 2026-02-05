@@ -1,9 +1,10 @@
+import logging
 from collections import defaultdict
 import numpy as np
 import pandas as pd
 from utils.load import fetch_results
 
-import logging
+logger = logging.getLogger(__name__)
 
 
 def concatenate(*dfs, index_fill_values={}, **kw):
@@ -40,7 +41,11 @@ def concatenate(*dfs, index_fill_values={}, **kw):
 
 def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, epoch='last', **kw):
 
-    df = concatenate(*fetch_results(**kw), **kw)
+    logger.info('Looking for results in {}'.format(kw.get('results_directory')))
+    list_of_dfs = list(fetch_results(**kw))
+    logger.info('Found {} results'.format(len(list_of_dfs)))
+
+    df = concatenate(*list_of_dfs, **kw)
 
     kept_cols = [_ for _ in df.columns if df_columns.get(_)]
 
@@ -61,6 +66,7 @@ def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, epoch='last', **kw)
 
 if __name__ == '__main__':
     from configs.configdict import ConfigDict
+    import utils.logger
 
     df, dropped_index = df_results(**ConfigDict())
 
