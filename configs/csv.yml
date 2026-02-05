@@ -2,9 +2,13 @@ csv_index:
   dataset: ood
   epoch: epoch
 
-csv_columns:
+df_columns:
   FPR@95: fpr
   AUROC: auc
   ACC: acc
   AUPR_IN:
   AUPR_OUT:
+
+index_fill_values:
+  epoch: 0
+  epochs: 0

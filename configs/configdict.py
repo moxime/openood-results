@@ -1,5 +1,6 @@
 import yaml
 import pathlib
+import argparse
 
 KEYS_YML = 'configs/config_keys.yml'
 CSV_YML = 'configs/csv.yml'
@@ -63,16 +64,20 @@ class ConfigDict(dict):
         return type(self)(_registering_default=False,
                           **{'{}{}'.format(prefix, _): self[k][_] for _ in self[k]})
 
+    def create_parser(self, parser=None, prefix=[]):
+
+        if not parser:
+            parser = argparse.ArgumentParser()
+        for k, v in self.items():
+
+            if isinstance(v, type(self)):
+                yield from self[k].create_parser(prefix=prefix + [k])
+
+            yield prefix + [k]
+
 
 if __name__ == '__main__':
-    print('**** default')
-    c = ConfigDict(foo={'baz': 1, 'bar': 2})
-    print(c)
+    c = ConfigDict()
 
-    print('**** deep update')
-    c.deepupdate(foo={'baz': 2}, files={'ood_csv': 'foo.csv'})
-    print(c['foo'], c['files'])
-
-    print('**** update')
-    c.update(files={'ood_csv': 'foo.csv'}, foo={'baz': 2})
-    print(c['foo'], c['files'])
+    for _ in c.create_parser():
+        print(_)

@@ -25,12 +25,9 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
     index_labels = df.columns[df.columns.isin(list(csv_index))]
 
     df.set_index(list(index_labels), inplace=True, append=False)
-
-    if len(df.index.names) == 1:
-        if df.index.name in csv_index:
-            df.index.rename(csv_index[df.index.name], inplace=True)
-    else:
-        df.index.rename(csv_index, inplace=True)
+    if not isinstance(df.index, pd.MultiIndex):
+        df.index = pd.MultiIndex.from_arrays([df.index], names=[df.index.name])
+    df.index.rename(csv_index, inplace=True)
 
     return df
 
@@ -97,8 +94,8 @@ def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
             yield from sample_config(parsed_config[k], config_keys='{}_{}'.format(config_keys, k))
 
         return
-
-    yield config_keys, parsed_config
+    if parsed_config is not None:
+        yield config_keys, parsed_config
 
 
 def df_exp(path, **kw):
@@ -112,42 +109,32 @@ def df_exp(path, **kw):
     try:
         config = load_config(path, **kw)
     except FileNotFoundError:
-        config = {}
+        c = {'dataset': {'name': 'unknown'}}
 
     params = dict(sample_config(config, **kw))
 
+    if 'param' in params:
+        print('***', path, params)
+
     for k, v in params.items():
         df[k] = v
-
-    df.set_index(list(params), append=True, inplace=True)
+        df.set_index(k, append=True, inplace=True)
 
     return df
 
 
-def fetch_results(directory='./results', **kw):
+def fetch_results(results_directory='./results', **kw):
 
-    d = Path(directory)
+    d = Path(results_directory)
 
-    ood_csv = kw.get('ood_csv', OOD_CSV)
+    try:
+        yield df_exp(d, **kw)
+    except FileNotFoundError:
+        pass
 
-    if not d.exists() or not d.is_dir():
-        raise FileNotFoundError(d)
+    for s in [_ for _ in d.iterdir() if _.is_dir()]:
 
-    for csv_file in d.glob('**/{}'.format(ood_csv)):
-
-        df = read_csv(csv_file, **kw)
-        try:
-            c = load_config(csv_file.parent, **kw)
-        except FileNotFoundError:
-            c = {'dataset': {'name': 'unknown'}}
-
-        c = dict(sample_config(c, **kw))
-
-        for k in c:
-            df[k] = c[k]
-            df.set_index(k, append=True, inplace=True)
-
-        yield df
+        yield from fetch_results(results_directory=s, **kw)
 
 
 if __name__ == '__main__':
