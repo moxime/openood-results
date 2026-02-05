@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 from utils.load import fetch_results
 
+import logging
+
 
 def concatenate(*dfs, index_fill_values={}, **kw):
 
@@ -36,15 +38,32 @@ def concatenate(*dfs, index_fill_values={}, **kw):
     return pd.concat(df_)
 
 
-def df_results(csv_**kw):
+def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, epoch='last', **kw):
 
     df = concatenate(*fetch_results(**kw), **kw)
+
+    kept_cols = [_ for _ in df.columns if df_columns.get(_)]
+
+    df = df[kept_cols]
+
+    df.rename(columns=df_columns, inplace=True)
+
+    dropped_index = {}
+
+    for n in df.index.names:
+        values = set(df.index.get_level_values(n))
+        if len(values) == 1:
+            df.index = df.index.droplevel(n)
+            dropped_index[n] = next(iter(values))
+
+    return df, dropped_index
 
 
 if __name__ == '__main__':
     from configs.configdict import ConfigDict
 
-    df = df_results(**ConfigDict())
+    df, dropped_index = df_results(**ConfigDict())
 
     print(len(df))
     print(df.tail().to_string())
+    print(dropped_index)

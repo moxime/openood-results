@@ -1,3 +1,4 @@
+import time
 import yaml
 from pathlib import Path
 import pandas as pd
@@ -44,7 +45,7 @@ ConfigLoader.add_constructor("tag:yaml.org,2002:python/object/new:openood.utils.
                              config_as_dict)
 
 
-def load_raw_config(path):
+def _load_raw_config(path):
     with open(path) as f:
         data = yaml.load(f, Loader=ConfigLoader)
 
@@ -61,7 +62,7 @@ def load_config(path, config_yml=CONFIG_YML, **kw):
     if path.suffix != '.yml':
         raise ValueError('.yml expected, got {}'.format(path.suffix))
 
-    c = load_raw_config(path)
+    c = _load_raw_config(path)
     # with open(path) as f:
     #    c = yaml.load(f, Loader=yaml.UnsafeLoader)  # DANGEROUS on untrusted files
 
@@ -99,24 +100,21 @@ def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
 
 
 def df_exp(path, **kw):
+
     path = Path(path)
 
     if not path.exists() or not path.is_dir():
         raise FileNotFoundError(path)
 
     df = read_csv(path, **kw)
-
     try:
         config = load_config(path, **kw)
     except FileNotFoundError:
-        c = {'dataset': {'name': 'unknown'}}
+        config = {'dataset': {'name': 'unknown'}}
 
-    params = dict(sample_config(config, **kw))
+    parsed_config = dict(sample_config(config, **kw))
 
-    if 'param' in params:
-        print('***', path, params)
-
-    for k, v in params.items():
+    for k, v in parsed_config.items():
         df[k] = v
         df.set_index(k, append=True, inplace=True)
 
@@ -138,8 +136,24 @@ def fetch_results(results_directory='./results', **kw):
 
 
 if __name__ == '__main__':
-    from configs.configdict import ConfigDict
 
-    df_ = list(fetch_results(**ConfigDict()))
+    import time
+    from pathlib import Path
+    p = Path('/tmp/config.yml')
+    p_ = p.parent / (p.name + '_raw'+p.suffix)
 
-    index_names = set(sum([list(df.index.names) for df in df_], start=[]))
+    c = load_config(p)
+
+    with open(p_, 'w') as f:
+        yaml.safe_dump(c, f)
+
+    N = 10
+
+    for p in (p, p_):
+        t0 = time.time()
+        for _ in range(N):
+            with open(p) as f:
+                c = yaml.load(f, Loader=ConfigLoader)
+        t = time.time() - t0
+
+        print(p, '{:.3f}ms'.format(t/N*1e3))

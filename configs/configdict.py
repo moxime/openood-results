@@ -3,7 +3,7 @@ import pathlib
 import argparse
 
 KEYS_YML = 'configs/config_keys.yml'
-CSV_YML = 'configs/csv.yml'
+CSV_YML = 'configs/table.yml'
 FILES_YML = 'configs/files.yml'
 
 
