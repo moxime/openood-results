@@ -1,10 +1,8 @@
-csv_name: ood.csv
-
-header:
+csv_index:
   dataset: ood
   epoch: epoch
 
-columns:
+csv_columns:
   FPR@95: fpr
   AUROC: auc
   ACC: acc

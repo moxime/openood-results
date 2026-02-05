@@ -1,22 +1,18 @@
 import yaml
 from pathlib import Path
 import pandas as pd
-from configs.config import default_parse_config
 
 OOD_CSV = 'ood.csv'
-CONFIG_YML 'config.yml'
-
-METRICS_COLUMNS = default_parse_config['csv']['columns']
-CSV_HEADER = default_parse_config['csv']['header']
-PARAMS_KEYS = default_parse_config['params']
+CONFIG_YML = 'config.yml'
+CONFIG_KEYS = {'dataset': {'name': 'set'}, 'postprocessor': {'name': 'method'}}
 
 
-def read_csv(path, name=OOD_CSV, index_dict=CSV_HEADER, metrics=METRICS_COLUMNS, **kw):
+def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch'},  **kw):
 
     path = Path(path)
 
     if path.is_dir():
-        path = path / name
+        path = path / ood_csv
 
     if not path.exists():
         raise FileNotFoundError(path)
@@ -26,16 +22,15 @@ def read_csv(path, name=OOD_CSV, index_dict=CSV_HEADER, metrics=METRICS_COLUMNS,
 
     df = pd.read_csv(path)
 
-    index_labels = df.columns[~df.columns.isin(list(metrics))]
+    index_labels = df.columns[df.columns.isin(list(csv_index))]
 
     df.set_index(list(index_labels), inplace=True, append=False)
 
     if len(df.index.names) == 1:
-        if df.index.name in index_dict:
-            pass
-            df.index.rename(index_dict[df.index.name], inplace=True)
+        if df.index.name in csv_index:
+            df.index.rename(csv_index[df.index.name], inplace=True)
     else:
-        df.index.rename(index_dict, inplace=True)
+        df.index.rename(csv_index, inplace=True)
 
     return df
 
@@ -59,12 +54,12 @@ def load_raw_config(path):
     return data['state']
 
 
-def load_config(path, name=CONFIG_YML, **kw):
+def load_config(path, config_yml=CONFIG_YML, **kw):
 
     path = Path(path)
 
     if path.is_dir():
-        path = path / name
+        path = path / config_yml
 
     if path.suffix != '.yml':
         raise ValueError('.yml expected, got {}'.format(path.suffix))
@@ -76,7 +71,7 @@ def load_config(path, name=CONFIG_YML, **kw):
     return c
 
 
-def sample_config(config, key_dict=PARAMS_KEYS, **kw):
+def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
     """sample config dict wrt a key_dict
 
     --config is a config dict (loaded from config.yml)
@@ -91,25 +86,50 @@ def sample_config(config, key_dict=PARAMS_KEYS, **kw):
 
     """
 
-    if isinstance(key_dict, dict):
-        for k in key_dict:
-            if k in config:
-                yield from sample_config(config[k], key_dict=key_dict[k])
+    if isinstance(config_keys, dict):
+        for k in config_keys:
+            if k in parsed_config:
+                yield from sample_config(parsed_config[k], config_keys=config_keys[k])
 
         return
 
-    if isinstance(config, dict):
-        for k in config:
-            yield from sample_config(config[k], key_dict='{}_{}'.format(key_dict, k))
+    if isinstance(parsed_config, dict):
+        for k in parsed_config:
+            yield from sample_config(parsed_config[k], config_keys='{}_{}'.format(config_keys, k))
 
         return
 
-    yield key_dict, config
+    yield config_keys, parsed_config
 
 
-def fetch_results(directory='./results', ood_csv=OOD_CSV, config_yml=CONFIG_YML, **kw):
+def df_exp(path, **kw):
+    path = Path(path)
+
+    if not path.exists() or not path.is_dir():
+        raise FileNotFoundError(path)
+
+    df = read_csv(path, **kw)
+
+    try:
+        config = load_config(path, **kw)
+    except FileNotFoundError:
+        config = {}
+
+    params = dict(sample_config(config, **kw))
+
+    for k, v in params.items():
+        df[k] = v
+
+    df.set_index(list(params), append=True, inplace=True)
+
+    return df
+
+
+def fetch_results(directory='./results', **kw):
 
     d = Path(directory)
+
+    ood_csv = kw.get('ood_csv', OOD_CSV)
 
     if not d.exists() or not d.is_dir():
         raise FileNotFoundError(d)
@@ -118,7 +138,7 @@ def fetch_results(directory='./results', ood_csv=OOD_CSV, config_yml=CONFIG_YML,
 
         df = read_csv(csv_file, **kw)
         try:
-            c = load_config(csv_file.parent, name=config_yml)
+            c = load_config(csv_file.parent, **kw)
         except FileNotFoundError:
             c = {'dataset': {'name': 'unknown'}}
 
@@ -132,5 +152,8 @@ def fetch_results(directory='./results', ood_csv=OOD_CSV, config_yml=CONFIG_YML,
 
 
 if __name__ == '__main__':
+    from configs.configdict import ConfigDict
 
-    df = fetch_results()
+    df_ = list(fetch_results(config_keys=ConfigDict()['keys']))
+
+    index_names = set(sum([list(df.index.names) for df in df_], start=[]))
