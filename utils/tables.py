@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 import numpy as np
 import pandas as pd
-from utils.load import fetch_results
+from .load import fetch_results
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +66,53 @@ def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, epoch='last', **kw)
 
 if __name__ == '__main__':
     from configs.configdict import ConfigDict
-    import utils.logger
+    from utils.logger import set_loggers
+    import sys
 
-    df, dropped_index = df_results(**ConfigDict())
+    import argparse
 
-    print(len(df))
-    print(df.tail().to_string())
-    print(dropped_index)
+    argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
+
+    argv = None if sys.argv[0] else argv.split()
+
+    config = ConfigDict()
+
+    parser = argparse.ArgumentParser()
+    config.create_parser(parser=parser, exclude=['config_keys'])
+
+    subparsers = parser.add_subparsers()
+
+    parser_filter = subparsers.add_parser('filter', help='table filter help')
+
+    args, _ = parser.parse_known_args(argv)
+
+    config.deepupdate(args)
+    set_loggers(**config)
+
+    df, dropped_index = df_results(**config)
+
+    for name in df.index.names:
+        values = list(set(df.index.get_level_values(name)))
+        # print('***', '--{}'.format(name), type(values[0]), values)
+        parser_filter.add_argument('--{}'.format(name), nargs='*',
+                                   dest='filter.{}'.format(name),
+                                   default=values, type=type(values[0]))
+
+    parser.parse_args(argv, namespace=args)
+
+    # print('FARGS\n', args)
+
+    for k in df.index.names:
+        df = df.iloc[df.index.isin(vars(args)['filter.{}'.format(k)], level=k)]
+
+    for n in df.index.names:
+        values = set(df.index.get_level_values(n))
+        if len(values) == 1:
+            df.index = df.index.droplevel(n)
+            dropped_index[n] = next(iter(values))
+
+    df.sort_index(inplace=True)
+    print(df.to_string())
+    print('='*20)
+    # print(df.index.names)
+    print(ConfigDict(dropped_index, _registering_default=False))

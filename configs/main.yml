@@ -1,9 +1,10 @@
 loggers:
   __default__: warning
-  __main__: info
-  utils.logger: warning
+  __main__: warning
+  utils.logger: 
   utils.load: 
   utils.tables:
+  utils.filters:  
 
 results_directory: ./results
 

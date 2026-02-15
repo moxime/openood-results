@@ -124,6 +124,8 @@ def df_exp(path, **kw):
     parsed_config = dict(sample_config(config, **kw))
 
     for k, v in parsed_config.items():
+        if isinstance(v, list):
+            v = '-'.join(v)
         df[k] = v
         df.set_index(k, append=True, inplace=True)
 
@@ -147,22 +149,12 @@ def fetch_results(results_directory='./results', **kw):
 if __name__ == '__main__':
 
     import time
+    import sys
     from pathlib import Path
     p = Path('/tmp/config.yml')
-    p_ = p.parent / (p.name + '_raw'+p.suffix)
-
     c = load_config(p)
 
-    with open(p_, 'w') as f:
-        yaml.safe_dump(c, f)
-
-    N = 10
-
-    for p in (p, p_):
-        t0 = time.time()
-        for _ in range(N):
-            with open(p) as f:
-                c = yaml.load(f, Loader=ConfigLoader)
-        t = time.time() - t0
-
-        print(p, '{:.3f}ms'.format(t/N*1e3))
+    yaml.dump(c, stream=sys.stdout,
+              default_flow_style=False,
+              sort_keys=False,
+              indent=2)

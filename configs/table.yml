@@ -5,7 +5,7 @@ csv_index:
 df_columns:
   FPR@95: fpr
   AUROC: auc
-  ACC: acc
+  ACC: 
   AUPR_IN:
   AUPR_OUT:
 

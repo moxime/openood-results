@@ -1,21 +1,37 @@
 config_keys:
+
   dataset:
     name: set
 
   ood_dataset:
     name: oods
-
+    batch_size: batch_size
+    padding:
+      datasets: pad-ext
+    mixture:
+      datasets: mixes
+      
   network:
     name: net
 
   pipeline:
     name: pipeline
-
+    
   evaluator:
     name: evaluator
+    ood_period: ood_period
 
   postprocessor:
-    tta_epochs: epochs
     name: method
     postprocessor_args: param
-  
+    padding: padding
+    ft:
+      batch_size: ft_batch_size
+      epochs: epochs
+      wd: wd
+      lr: lr
+      beta: beta
+
+  debug: debug%
+  mark: job
+  # exp_name: d
