@@ -12,3 +12,7 @@ df_columns:
 index_fill_values:
   epoch: 0
   epochs: 0
+
+hidden_index:
+  - exp
+  - job

@@ -1,12 +1,18 @@
 loggers:
   __default__: warning
   __main__: warning
-  utils.logger: 
-  utils.load: 
-  utils.tables:
-  utils.filters:  
+  utils:
+    logger: 
+    load: 
+    tables:
+    filters:  
 
 results_directory: ./results
 
 ood_csv: ood.csv
 config_yml: config.yml
+
+aliases:
+  loggers.__main__: --log
+  results_directory: -r
+  

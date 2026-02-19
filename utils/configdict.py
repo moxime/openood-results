@@ -1,12 +1,21 @@
 import logging
 import yaml
-import pathlib
+from pathlib import Path
 import argparse
 from argparse import Namespace
+from importlib.resources import files
+import sys
+import os
 
-KEYS_YML = 'configs/config_keys.yml'
-CSV_YML = 'configs/table.yml'
-MAIN_YML = 'configs/main.yml'
+
+try:
+    config_root = Path(__file__).parent.parent / 'configs'
+except NameError:
+    config_root = Path('configs')
+
+KEYS_YML = config_root / 'config_keys.yml'
+CSV_YML = config_root / 'table.yml'
+MAIN_YML = config_root / 'main.yml'
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +31,7 @@ class ConfigDict(dict):
             for yml_file in (MAIN_YML, CSV_YML, KEYS_YML):
                 self._update(0, **yaml.load(open(yml_file), Loader=yaml.SafeLoader))
 
-        self.deepupdate(*a, **kw)
+        self.update(*a, **kw)
 
     def __repr__(self, prefix='', indent=2):
 
@@ -35,11 +44,31 @@ class ConfigDict(dict):
                 r.append('{}{}: {}'.format(prefix, k, str(v)))
         return '\n'.join(r)
 
-    def update(self, *a, **kw):
+    def shallowupdate(self, *a, **kw):
         self._update(1, *a, **kw)
 
-    def deepupdate(self, *a, **kw):
+    def update(self, *a, **kw):
         self._update(-1, *a, **kw)
+
+    @classmethod
+    def fromargs(cls, args, config=None, **kw):
+        if args is not None:
+            return cls.fromargs(None, config, **kw)
+        if config is None:
+            config = cls(_registering_default=False)
+            return cls.fromargs(None, config, **kw)
+
+        for k, v in kw.items:
+            pass
+
+    def _update_with_dotkeys(self, **kw):
+
+        for k, v in kw.items():
+            k_ = k.split('.')
+            if len(k_) == 1:
+                self.update(**{k: v})
+                continue
+            self[k_[0]]._update_with_dotkeys(**{'.'.join(k_[1:]): v})
 
     def _update(self, depth, *a, _registering_default=False, **kw):
 
@@ -48,7 +77,9 @@ class ConfigDict(dict):
 
             if isinstance(a[0], dict):
                 return self._update(depth, _registering_default=_registering_default, **a[0])
-            return self._update(depth, __regiistering_defaults=_registering_default, **a[0].__dict__)
+            # a[0] is args
+            return self._update_with_dotkeys(__regiistering_defaults=_registering_default,
+                                             **a[0].__dict__)
         for k, v in kw.items():
 
             if isinstance(v, dict):
@@ -60,7 +91,7 @@ class ConfigDict(dict):
                 continue
 
             try:
-                path = pathlib.Path(v).resolve(strict=True)
+                path = Path(v).resolve(strict=True)
                 is_yml = path.suffix == '.yml'
             except (FileNotFoundError, TypeError):
                 is_yml = False
@@ -77,13 +108,16 @@ class ConfigDict(dict):
         return type(self)(_registering_default=False,
                           **{'{}{}'.format(prefix, _): self[k][_] for _ in self[k]})
 
-    def create_parser(self, parser=None, prefix=[], exclude=None, include=None):
+    def create_parser(self, parser=None, prefix=[], exclude=['config_keys'], include=None, aliases='aliases'):
+
+        if isinstance(aliases, str):
+            exclude.append(aliases)
+            aliases = self[aliases]
 
         if include is None:
             include = set(self)
 
-        if exclude is not None:
-            include = include - set(exclude)
+        include = include - set(exclude)
 
         if not parser:
             parser = argparse.ArgumentParser()
@@ -92,22 +126,31 @@ class ConfigDict(dict):
             if k not in include:
                 continue
             if isinstance(v, type(self)):
-                v.create_parser(parser=parser, prefix=prefix + [k])
+                v.create_parser(parser=parser, prefix=prefix + [k], aliases=aliases)
             else:
-                arg = '--{}'.format('.'.join(prefix + [k]))
-                parser.add_argument(arg, type=type(v), default=v)
+                arg_name = '.'.join(prefix + [k])
+                arg_alias = []
+                if arg_name in aliases:
+                    arg_alias = aliases[arg_name]
+                    if not isinstance(arg_alias, list):
+                        arg_alias = [arg_alias]
+                args = ['--{}'.format(arg_name), *arg_alias]
+                logger.debug('{} ({})'.format(','.join(args), type(v)))
+                argtype = str if v is None else type(v)
+                parser.add_argument(*args, type=argtype, default=v)
 
         return parser
 
 
 if __name__ == '__main__':
     c = ConfigDict()
+    from .logger import set_loggers
 
-    print(c)
     parser = c.create_parser(exclude=['config_keys'])
 
-    args, _ = parser.parse_known_args()
+    args = parser.parse_args()
 
-    c.deepupdate(args)
+    c.update(args)
+    set_loggers(**c)
 
     print(c)

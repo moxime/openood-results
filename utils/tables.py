@@ -1,4 +1,5 @@
 import logging
+import argparse
 from collections import defaultdict
 import numpy as np
 import pandas as pd
@@ -39,6 +40,25 @@ def concatenate(*dfs, index_fill_values={}, **kw):
     return pd.concat(df_)
 
 
+def create_filter_parser(df, hidden_index=['exp'], parser=None, **k):
+
+    if not parser:
+        parser = argparse.ArgumentParser()
+
+    hidden = []
+    for name in df.index.names:
+        values = list(set(df.index.get_level_values(name)))
+        parser.add_argument('--{}'.format(name), nargs='*',
+                            dest='filter.{}'.format(name),
+                            default=values, type=type(values[0]))
+
+    hidden = set(df.index.names) ^ set(hidden_index)
+    logger.debug('hidden index: {}'.format(', '.join(hidden)))
+    parser.add_argument('--show', nargs='*', choices=hidden)
+
+    return parser
+
+
 def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, epoch='last', **kw):
 
     logger.info('Looking for results in {}'.format(kw.get('results_directory')))
@@ -65,7 +85,7 @@ def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, epoch='last', **kw)
 
 
 if __name__ == '__main__':
-    from configs.configdict import ConfigDict
+    from utils.configdict import ConfigDict
     from utils.logger import set_loggers
     import sys
 
@@ -86,7 +106,7 @@ if __name__ == '__main__':
 
     args, _ = parser.parse_known_args(argv)
 
-    config.deepupdate(args)
+    config.update(args)
     set_loggers(**config)
 
     df, dropped_index = df_results(**config)
