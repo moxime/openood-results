@@ -1,25 +1,27 @@
-from .utils import ConfigDict, set_loggers, df_results, create_filter_parser
-import argparse
-import sys
+from __future__ import annotations
+import logging
 
-print('***', __name__)
+logger = logging.getLogger(__name__)
+
 if __name__ == "__main__" and __package__ is None:
     import os
     import sys
-
     try:
         pkg_dir = os.path.dirname(os.path.abspath(__file__))  # .../myproject
-        print(__file__)
-        parent = os.path.dirname(pkg_dir)                     # .../
-        sys.path.insert(0, parent)
-        __package__ = 'openood-results'
     except NameError:
-        print(__package__)
-
-print('***', __package__)
+        # temprary trick for C-u C-c C-c
+        pkg_dir = os.getcwd()
+    parent = os.path.dirname(pkg_dir)                     # .../
+    sys.path.insert(0, parent)
+    __package__ = 'openood-results'
 
 
 def main():
+    import sys
+    import argparse
+    from .utils import ConfigDict, set_loggers, df_results, df_filter_parse
+    import pandas as pd
+
     argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
 
     argv = None if sys.argv[0] else argv.split()
@@ -33,33 +35,45 @@ def main():
 
     parser_filter = subparsers.add_parser('filter', help='table filter help')
 
-    args, _ = parser.parse_known_args(argv)
+    args, remainig_args = parser.parse_known_args(argv)
 
     config.update(args)
+    config.setup()
     set_loggers(**config)
 
-    df, dropped_index = df_results(**config)
+    logger.info('Looking for results in {}'.format(config.get('results_directory')))
 
-    create_filter_parser(df, parser=parser_filter, **config)
+    for line in str(config).split('\n'):
+        logger.debug(line)
 
-    parser.parse_args(argv, namespace=args)
+    df = df_results(**config)
 
-    # print('FARGS\n', args)
-
-    for k in df.index.names:
-        df = df.iloc[df.index.isin(vars(args)['filter.{}'.format(k)], level=k)]
-
-    for n in df.index.names:
-        values = set(df.index.get_level_values(n))
-        if len(values) == 1:
-            df.index = df.index.droplevel(n)
-            dropped_index[n] = next(iter(values))
+    df = df_filter_parse(df, parser=parser_filter, argv=remainig_args, **config)
 
     df.sort_index(inplace=True)
-    print(df.to_string())
-    print('='*20)
+
+    if not len(df):
+        logger.error('No df (all results are filtered out')
+        return
+
+    with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
+        date0 = df.index.get_level_values('date')[0]
+        print(date0, type(date0))
+        pd.describe_option('display.date')
+        print(df.to_string(float_format='{:.1f}'.format))
+        df_str = df.to_string(float_format='{:.1f}'.format)
+
+    df_width = max(len(_) for _ in df_str.split('\n'))
+    print(df_str)
+    print('='*df_width)
     # print(df.index.names)
-    print(ConfigDict(dropped_index, _registering_default=False))
+    for _, v in df.drop_index.items():
+        if len(v) > 1:
+            df.drop_index[_] = '--'
+        else:
+            df.drop_index[_] = next(iter(v))
+
+    print(ConfigDict(df.drop_index, _registering_default=False))
 
 
 if __name__ == '__main__':

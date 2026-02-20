@@ -1,3 +1,3 @@
-from .logger import set_loggers
+from .tables import df_results, df_filter_parse
 from .configdict import ConfigDict
-from .tables import df_results, create_filter_parser
+from .logger import set_loggers

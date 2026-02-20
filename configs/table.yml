@@ -16,3 +16,9 @@ index_fill_values:
 hidden_index:
   - exp
   - job
+  - date
+  - oods
+
+flash: True
+
+parse_dates: [date]
