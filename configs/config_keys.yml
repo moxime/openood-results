@@ -24,7 +24,11 @@ config_keys:
   postprocessor:
     name: method
     postprocessor_args: param
-    padding: +
+    padding:
+      id: id_pad
+      ood: ood_pad
+      self: self_pad
+      threshold: s_ood
     ft:
       batch_size: ft_batch_size
       epochs: epochs

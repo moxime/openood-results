@@ -57,10 +57,6 @@ def main():
         return
 
     with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-        date0 = df.index.get_level_values('date')[0]
-        print(date0, type(date0))
-        pd.describe_option('display.date')
-        print(df.to_string(float_format='{:.1f}'.format))
         df_str = df.to_string(float_format='{:.1f}'.format)
 
     df_width = max(len(_) for _ in df_str.split('\n'))

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class ConfigDict(dict):
 
-    def __init__(self, *a, **kw):
+    def __init__(self, /, *a, **kw):
 
         super().__init__()
 
@@ -46,10 +46,10 @@ class ConfigDict(dict):
                 r.append('{}{}: {}'.format(prefix, k, str(v)))
         return '\n'.join(r)
 
-    def shallowupdate(self, *a, **kw):
+    def shallowupdate(self, /, *a, **kw):
         self._update(1, *a, **kw)
 
-    def update(self, *a, **kw):
+    def update(self, /, *a, **kw):
         self._update(-1, *a, **kw)
 
     @classmethod
@@ -72,7 +72,7 @@ class ConfigDict(dict):
                 continue
             self[k_[0]]._update_with_dotkeys(**{'.'.join(k_[1:]): v})
 
-    def _update(self, depth, *a, _registering_default=False, **kw):
+    def _update(self, /, depth, *a, _registering_default=False, **kw):
 
         if a:
             assert len(a) == 1 and isinstance(a[0], (Namespace, dict)), '{},{}'.format(depth, a)

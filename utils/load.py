@@ -93,15 +93,21 @@ def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
         for k in config_keys:
             if k in parsed_config:
                 yield from sample_config(parsed_config[k], config_keys=config_keys[k])
+        return
 
+    if isinstance(config_keys, list):
+        for k in config_keys:
+            #  print('***', parsed_config, '***', k)
+            yield from sample_config(parsed_config, k)
         return
 
     if isinstance(parsed_config, dict):
         for k in parsed_config:
             yield from sample_config(parsed_config[k], config_keys='{}_{}'.format(config_keys, k))
-
         return
+
     if parsed_config is not None:
+        # print(config_keys, '->', parsed_config)
         yield config_keys, parsed_config
 
 
