@@ -1,11 +1,10 @@
-loggers:
+logger:
   __default__: warning
-  __main__: warning
-  utils:
-    logger: 
-    load: 
-    tables:
-    filters:  
+  __main__: 
+  logger: 
+  load: 
+  tables:
+  filters:  
 
 results_directory: ./results
 
@@ -13,6 +12,8 @@ ood_csv: ood.csv
 config_yml: config.yml
 
 aliases:
-  loggers.__main__: --log
+  logger.__main__: [--log, --debug:debug]
+  logger.__default__: --full-log
   results_directory: -r
+  no-flash: --reload
   

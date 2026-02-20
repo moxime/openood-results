@@ -18,6 +18,9 @@ def log_level(s):
 
 
 def get_level(name, **levels):
+    """
+    deprecated
+    """
     if not name:
         return
     if name in levels:
@@ -28,17 +31,26 @@ def get_level(name, **levels):
     return get_level('.'.join(names[1:]), **levels[names[0]])
 
 
-def set_loggers(**levels):
+def get_level(name, **levels):
+    if name.startswith(__package__):
+        name = name[len(__package__) + 1:]
+    return levels.get(name)
 
-    if 'loggers' in levels:
-        levels = levels['loggers']
+
+def set_loggers(logger_root=__package__, **levels):
+
+    if 'logger' in levels:
+        levels = levels['logger']
 
     default_level = levels.get('__default__', DEFAULT_LEVEL)
     logger.setLevel(log_level(get_level(__name__, **levels) or default_level))
     logger.addHandler(stream_handler)
 
     for name, l in logging.Logger.manager.loggerDict.items():
+        if name.startswith(__package__):
+            name = name[len(__package__) + 1:]
         if isinstance(l, logging.Logger):
+            # print('***', __package__, name, levels.get(name))
             level = get_level(name, **levels) or default_level
             l.setLevel(log_level(level))
             l.addHandler(stream_handler)
