@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import yaml
 from pathlib import Path
@@ -67,7 +68,8 @@ def load_config(path, config_yml=CONFIG_YML, **kw):
         raise ValueError('.yml expected, got {}'.format(path.suffix))
 
     c = _load_raw_config(path)
-    # with open(path) as f:
+    date = pd.Timestamp(os.path.getmtime(path), unit="s")
+    c['exp_date'] = date
     #    c = yaml.load(f, Loader=yaml.UnsafeLoader)  # DANGEROUS on untrusted files
 
     return c
@@ -110,25 +112,30 @@ def df_exp(path, **kw):
     if not path.exists() or not path.is_dir():
         raise FileNotFoundError(path)
 
+    t0 = time.time()
     df = read_csv(path, **kw)
 
     logger.debug('Found a csv in {}'.format(path))
 
     try:
         config = load_config(path, **kw)
-        logger.debug('Found a config file in {}'.format(path))
+        t1 = time.time() - t0
+        logger.debug('Found a config file in {} (loaded in {:.1f}ms'.format(path, t1*1e3))
     except FileNotFoundError:
         config = {'dataset': {'name': 'unknown'}}
         logger.debug('Did not find a config file in {}, default one is used'.format(path))
 
     parsed_config = dict(sample_config(config, **kw))
 
+    t0 = time.time()
     for k, v in parsed_config.items():
         if isinstance(v, list):
             v = '-'.join(v)
         df[k] = v
-        df.set_index(k, append=True, inplace=True)
-
+    df.set_index(list(parsed_config), append=True, inplace=True)
+    t2 = time.time() - t0
+    logger.debug('df ({}) filled up with {} indexes in {:.1f}ms'.format(len(df), len(parsed_config), t2*1e3))
+    df.to_csv(path / 'table.csv')
     return df
 
 
@@ -139,11 +146,8 @@ def fetch_results(results_directory='./results', **kw):
     try:
         yield df_exp(d, **kw)
     except FileNotFoundError:
-        pass
-
-    for s in [_ for _ in d.iterdir() if _.is_dir()]:
-
-        yield from fetch_results(results_directory=s, **kw)
+        for s in [_ for _ in d.iterdir() if _.is_dir()]:
+            yield from fetch_results(results_directory=s, **kw)
 
 
 if __name__ == '__main__':

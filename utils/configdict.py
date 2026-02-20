@@ -1,4 +1,5 @@
 import logging
+import time
 import yaml
 from pathlib import Path
 import argparse
@@ -6,7 +7,8 @@ from argparse import Namespace
 from importlib.resources import files
 import sys
 import os
-
+import pandas as pd
+from functools import partialmethod
 
 try:
     config_root = Path(__file__).parent.parent / 'configs'
@@ -136,10 +138,32 @@ class ConfigDict(dict):
                         arg_alias = [arg_alias]
                 args = ['--{}'.format(arg_name), *arg_alias]
                 logger.debug('{} ({})'.format(','.join(args), type(v)))
-                argtype = str if v is None else type(v)
-                parser.add_argument(*args, type=argtype, default=v)
+                if isinstance(v, bool):
+                    parser.add_argument(*args, action='store_true', default=v)
+                    arg_name_neg = 'no-' + arg_name
+                    if arg_name_neg in aliases:
+                        arg_alias = aliases[arg_name_neg]
+                        if not isinstance(arg_alias, list):
+                            arg_alias = [arg_alias]
+                    args = ['--{}'.format(arg_name_neg), *arg_alias]
+                    parser.add_argument(*args, action='store_false', dest=arg_name, default=v)
+                else:
+                    argtype = str if v is None else type(v)
+                    parser.add_argument(*args, type=argtype, default=v)
 
         return parser
+
+    def setup(self):
+
+        pass
+        # # time is in s from epoch, convert to ascii localtime
+        # fmt = {'time': lambda x: time.asctime(time.localtime(x))}
+
+        # index_types = self.pop('index_types', {})
+        # formatters = {_: fmt[index_types[_]] for _ in index_types}
+
+        # print(formatters)
+        # pd.DataFrame.to_string = partialmethod(pd.DataFrame.to_string, formatters=formatters)
 
 
 if __name__ == '__main__':
