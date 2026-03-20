@@ -52,6 +52,12 @@ class ConfigDict(dict):
     def update(self, /, *a, **kw):
         self._update(-1, *a, **kw)
 
+    # def __getattr__(self, a):
+    #     try:
+    #         return super().__getattribute__(a)
+    #     except AttributeError:
+    #         return self.__getitem__(a)
+
     @classmethod
     def fromargs(cls, args, config=None, **kw):
         if args is not None:
@@ -127,29 +133,38 @@ class ConfigDict(dict):
         for k, v in self.items():
             if k not in include:
                 continue
+
             if isinstance(v, type(self)):
                 v.create_parser(parser=parser, prefix=prefix + [k], aliases=aliases)
-            else:
-                arg_name = '.'.join(prefix + [k])
-                arg_alias = []
-                if arg_name in aliases:
-                    arg_alias = aliases[arg_name]
+                continue
+
+            arg_name = '.'.join(prefix + [k])
+            arg_alias = []
+            if arg_name in aliases:
+                arg_alias = aliases[arg_name]
+                if not isinstance(arg_alias, list):
+                    arg_alias = [arg_alias]
+            args = ['--{}'.format(arg_name), *arg_alias]
+            logger.debug('{} ({})'.format(','.join(args), type(v)))
+
+            if isinstance(v, bool):
+                parser.add_argument(*args, action='store_true', default=v)
+                arg_name_neg = 'no-' + arg_name
+                if arg_name_neg in aliases:
+                    arg_alias = aliases[arg_name_neg]
                     if not isinstance(arg_alias, list):
                         arg_alias = [arg_alias]
-                args = ['--{}'.format(arg_name), *arg_alias]
-                logger.debug('{} ({})'.format(','.join(args), type(v)))
-                if isinstance(v, bool):
-                    parser.add_argument(*args, action='store_true', default=v)
-                    arg_name_neg = 'no-' + arg_name
-                    if arg_name_neg in aliases:
-                        arg_alias = aliases[arg_name_neg]
-                        if not isinstance(arg_alias, list):
-                            arg_alias = [arg_alias]
-                    args = ['--{}'.format(arg_name_neg), *arg_alias]
-                    parser.add_argument(*args, action='store_false', dest=arg_name, default=v)
-                else:
-                    argtype = str if v is None else type(v)
-                    parser.add_argument(*args, type=argtype, default=v)
+                args = ['--{}'.format(arg_name_neg), *arg_alias]
+                parser.add_argument(*args, action='store_false', dest=arg_name, default=v)
+                continue
+
+            if isinstance(v, list):
+                argtype = type(v[0]) if v else str
+                nargs = '*'
+            else:
+                argtype = str if v is None else type(v)
+                nargs = None
+            parser.add_argument(*args, type=argtype, nargs=nargs, default=v)
 
         return parser
 
@@ -175,6 +190,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     c.update(args)
-    set_loggers(**c)
+    set_loggers(**c.logger)
 
-    print(c)
+    print(c.config_keys)

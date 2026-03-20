@@ -1,7 +1,3 @@
-csv_index:
-  dataset: ood
-  epoch: epoch
-
 df_columns:
   FPR@95: fpr
   AUROC: auc
@@ -12,13 +8,26 @@ df_columns:
 index_fill_values:
   epoch: 0
   epochs: 0
+  param_mu_alt: none
+  margin: 0.
 
 hidden_index:
   - exp
   - job
   - date
   - oods
+  - workers
+  - epoch
 
 flash: True
 
 parse_dates: [date]
+
+index_order: ['set', 'net', '...', 'ood', 'phase', 'epoch', 'date', 'job']
+
+index_dependencies:
+  beta: [s_ood]
+
+create_col:
+  iter: \chunk * (1 + max(\id_pad, 0) + max(\ood_pad, 0) + \self_pad) * \epochs / \batch_size
+  

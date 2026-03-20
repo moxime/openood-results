@@ -1,18 +1,24 @@
 logger:
   __default__: warning
   __main__: 
-  logger: 
+  logger:
+  configdict:
   load: 
   tables:
   filters:  
 
 results_directory: ./results
 
-ood_csv: ood.csv
-config_yml: config.yml
+load:
+  ood_csv: ood.csv
+  config_yml: config.yml
+  csv_index:
+    dataset: ood
+    epoch: epoch
+    phase: phase
 
 aliases:
-  logger.__main__: [--log, --debug:debug]
+  logger.main: [--log, --debug:debug]
   logger.__default__: --full-log
   results_directory: -r
   no-flash: --reload

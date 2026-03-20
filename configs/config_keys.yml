@@ -13,9 +13,12 @@ config_keys:
       
   network:
     name: net
+    margin: margin
 
   pipeline:
     name: pipeline
+    chunk_size: chunk
+    ood_period: ood_period
     
   evaluator:
     name: evaluator
@@ -35,9 +38,12 @@ config_keys:
       wd: wd
       lr: lr
       beta: beta
+      unfreeze: grad
 
   debug: debug%
   seed: seed
   mark: job
   exp_name: exp
   exp_date: date
+  create_date: cdate
+  num_workers: workers

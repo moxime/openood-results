@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 def main():
     import sys
     import argparse
-    from .utils import ConfigDict, set_loggers, df_results, df_filter_parse
+    from .utils import ConfigDict, set_loggers, df_results, df_filter_parse_args
     import pandas as pd
 
     argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
@@ -31,15 +31,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser = config.create_parser()
 
-    subparsers = parser.add_subparsers()
+    # subparsers = parser.add_subparsers()
+    # parser_filter = subparsers.add_parser('filter', help='table filter help')
 
-    parser_filter = subparsers.add_parser('filter', help='table filter help')
-
-    args, remainig_args = parser.parse_known_args(argv)
+    args, filter_args = parser.parse_known_args(argv)
 
     config.update(args)
     config.setup()
-    set_loggers(**config)
+    set_loggers(**config['logger'])
 
     logger.info('Looking for results in {}'.format(config.get('results_directory')))
 
@@ -48,7 +47,8 @@ def main():
 
     df = df_results(**config)
 
-    df = df_filter_parse(df, parser=parser_filter, argv=remainig_args, **config)
+    logger.debug('Filter args: {}'.format(', '.join(filter_args)))
+    df = df_filter_parse_args(df, parser=parser, argv=filter_args, **config)
 
     df.sort_index(inplace=True)
 

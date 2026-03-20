@@ -39,9 +39,6 @@ def get_level(name, **levels):
 
 def set_loggers(logger_root=__package__, **levels):
 
-    if 'logger' in levels:
-        levels = levels['logger']
-
     default_level = levels.get('__default__', DEFAULT_LEVEL)
     logger.setLevel(log_level(get_level(__name__, **levels) or default_level))
     logger.addHandler(stream_handler)
