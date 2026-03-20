@@ -28,6 +28,10 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
 
     df = pd.read_csv(path)
 
+    if 'epoch' in df:
+        epochs = max(df['epoch'])
+        df['phase'] = df['epoch'].map(lambda e: {0: 'start', epochs // 2: 'mid', epochs: 'end'}.get(e))
+
     index_labels = df.columns[df.columns.isin(list(csv_index))]
 
     df.set_index(list(index_labels), inplace=True, append=False)
@@ -68,11 +72,19 @@ def load_config(path, config_yml=CONFIG_YML, **kw):
         raise ValueError('.yml expected, got {}'.format(path.suffix))
 
     c = _load_raw_config(path)
-    date = pd.Timestamp(os.path.getmtime(path), unit="s")
+    date = pd.Timestamp(os.path.getmtime(path), unit="s", tz='Europe/Paris')
     c['exp_date'] = date
+    # date = pd.Timestamp(os.path.getctime(path), unit="s")
+    # c['create_date'] = date
     #    c = yaml.load(f, Loader=yaml.UnsafeLoader)  # DANGEROUS on untrusted files
 
     return c
+
+
+def save_config(path, c, config_keys=CONFIG_YML, **kw):
+
+    saved_conf = dict(state_dict=c)
+    # TBF
 
 
 def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
@@ -118,30 +130,25 @@ def df_exp(path, **kw):
     if not path.exists() or not path.is_dir():
         raise FileNotFoundError(path)
 
-    t0 = time.time()
-    df = read_csv(path, **kw)
+    df = read_csv(path, **kw['load'])
 
     logger.debug('Found a csv in {}'.format(path))
 
     try:
-        config = load_config(path, **kw)
-        t1 = time.time() - t0
-        logger.debug('Found a config file in {} (loaded in {:.1f}ms'.format(path, t1*1e3))
+        config = load_config(path, **kw['load'])
+        logger.debug('Found a config file in {}'.format(path))
     except FileNotFoundError:
         config = {'dataset': {'name': 'unknown'}}
         logger.debug('Did not find a config file in {}, default one is used'.format(path))
 
     parsed_config = dict(sample_config(config, **kw))
 
-    t0 = time.time()
     for k, v in parsed_config.items():
         if isinstance(v, list):
-            v = '-'.join(v)
+            v = '-'.join(sorted(v))
         df[k] = v
     df.set_index(list(parsed_config), append=True, inplace=True)
-    t2 = time.time() - t0
-    logger.debug('df ({}) filled up with {} indexes in {:.1f}ms'.format(len(df), len(parsed_config), t2*1e3))
-    df.to_csv(path / 'table.csv')
+    logger.debug('df ({}) filled up with {} indexes'.format(len(df), len(parsed_config)))
     return df
 
 
