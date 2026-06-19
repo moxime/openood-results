@@ -1,11 +1,6 @@
 import logging
-import time
 import argparse
-from collections import defaultdict
 import numpy as np
-import pandas as pd
-from .load import fetch_results
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -23,82 +18,6 @@ def ftype(o):
         return type(o)(s)
 
     return _type
-
-
-def concatenate(*dfs, index_fill_values={}, **kw):
-
-    index_dict = defaultdict(list)
-    for df in dfs:
-        for name in df.index.names:
-            index_dict[name].append(df.index.names.index(name))
-
-    for _ in index_dict:
-        index_dict[_] = np.exp(index_dict[_]).mean()
-    # print(dict(index_dict))
-    sorted_index = sorted(index_dict, key=index_dict.get)
-
-    df_ = []
-    for df in dfs:
-        index = df.index
-
-        if not (isinstance(index, pd.MultiIndex)):
-            df.index = pd.MultiIndex.from_arrays([df.index], names=[df.index.name])
-
-        index_frame = df.index.to_frame()
-
-        for c in sorted_index:
-            if c not in index_frame.columns:
-                index_frame[c] = index_fill_values.get(c)
-
-        df.index = pd.MultiIndex.from_frame(index_frame[sorted_index])
-
-        df_.append(df)
-
-    return pd.concat(df_)
-
-
-def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
-               parse_dates=['date'], flash=False, **kw):
-
-    t0 = time.time()
-    res_dir = kw.get('results_directory')
-    csv_path = Path(res_dir) / 'table.csv'
-
-    if flash:
-        try:
-            df = pd.read_csv(csv_path, parse_dates=parse_dates)
-            df.set_index([_ for _ in df.columns if _ not in df_columns], inplace=True)
-        except FileNotFoundError:
-            logger.warning('Flash df is true but {} does not exist, will fetch results'.format(csv_path))
-            flash = False
-
-    if not flash:
-
-        logger.info('Looking for results in {}'.format(res_dir))
-        list_of_dfs = list(fetch_results(**kw))
-        logger.info('Found {} results in {:.1f}s'.format(len(list_of_dfs), time.time() - t0))
-        df = concatenate(*list_of_dfs, **kw)
-        df.to_csv(csv_path)
-        logger.info('Table saved in {}'.format(csv_path))
-
-    kept_cols = [_ for _ in df.columns if df_columns.get(_)]
-
-    df = df[kept_cols]
-
-    df.rename(columns=df_columns, inplace=True)
-
-    df.drop_index = None  # to suppress warning
-    df.drop_index = {}
-
-    for n in df.index.names:
-        values = set(df.index.get_level_values(n))
-        if len(values) == 1:
-            df.drop_index[n] = values
-
-    t0 -= time.time()
-
-    logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
-    return df
 
 
 def df_sort_index(df, index_order=['set', '...', 'ood', 'epoch', 'date'], index_dependencies={}, **kw):

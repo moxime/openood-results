@@ -1,55 +1,56 @@
-config_keys:
+load:
+  config_keys:
 
-  dataset:
-    name: set
-    normalization_type: preproc
+    dataset:
+      name: set
+      normalization_type: preproc
 
-  ood_dataset:
-    name: oods
-    batch_size: batch_size
-    padding:
-      datasets: pad_ext
-    mixture:
-      datasets: mixes
+    ood_dataset:
+      name: oods
+      batch_size: batch_size
+      padding:
+        datasets: pad_ext
+      mixture:
+        datasets: mixes
       
-  network:
-    name: net
-    margin: margin
+    network:
+      name: net
+      margin: margin
 
-  pipeline:
-    name: pipeline
-    chunk_size: chunk
-    ood_period: ood_period
+    pipeline:
+      name: pipeline
+      chunk_size: chunk
+      ood_period: ood_period
     
-  evaluator:
-    name: evaluator
-    ood_period: ood_period
+    evaluator:
+      name: evaluator
+      ood_period: ood_period
 
-  postprocessor:
-    name: method
-    postprocessor_args:
-      mu_ood: mu_
-      max_iterations_per_phase: it_max
-      iterations_per_phase: it
-      gasless: gasless
-    padding:
-      id: id_pad
-      ood: ood_pad
-      self: self_pad
-      threshold: s_ood
-    ft:
-      batch_size: ft_batch_size
-      epochs: epochs
-      iterations_per_phase: it
-      wd: wd
-      lr: lr
-      beta: beta
-      unfreeze: grad
+    postprocessor:
+      name: method
+      postprocessor_args:
+        mu_ood: mu_
+        max_iterations_per_phase: it_max
+        iterations_per_phase: it
+        gasless: gasless
+      padding:
+        id: id_pad
+        ood: ood_pad
+        self: self_pad
+        threshold: s_ood
+      ft:
+        batch_size: ft_batch_size
+        epochs: epochs
+        iterations_per_phase: it
+        wd: wd
+        lr: lr
+        beta: beta
+        unfreeze: grad
 
-  debug: debug%
-  seed: seed
-  mark: job
-  exp_name: exp
-  exp_date: date
-  create_date: cdate
-  num_workers: workers
+    debug: debug%
+    seed: seed
+    mark: job
+    exp_name: exp
+    exp_date: date
+    create_date: cdate
+    num_workers: workers

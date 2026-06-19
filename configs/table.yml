@@ -1,10 +1,3 @@
-df_columns:
-  FPR@95: fpr
-  AUROC: auc
-  ACC: 
-  AUPR_IN:
-  AUPR_OUT:
-
 index_fill_values:
   epoch: 0
   epochs: 0
@@ -23,9 +16,6 @@ hidden_index:
   - epoch
   - path
 
-flash: True
-
-parse_dates: [date]
 
 index_order: ['set', 'net', '...', 'ood', 'phase', 'epoch', 'date', 'job']
 

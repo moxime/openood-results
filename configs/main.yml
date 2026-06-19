@@ -7,19 +7,29 @@ logger:
   tables:
   filters:  
 
-results_directory: ./results
-
 load:
+  results_directory: ./results
+
   ood_csv: ood.csv
-  config_yml: config.yml
   csv_index:
     dataset: ood
     epoch: epoch
     phase: phase
+  df_columns:
+    FPR@95: fpr
+    AUROC: auc
+    ACC: 
+    AUPR_IN:
+    AUPR_OUT:
+  parse_dates: [date]
 
+  config_yml: config.yml
+
+  flash: True
+  
 aliases:
   logger.main: [--log, --debug:debug]
   logger.__default__: --full-log
-  results_directory: -r
-  no-flash: --reload
+  load.results_directory: -r
+  no-load.flash: --reload
   

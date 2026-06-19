@@ -42,7 +42,7 @@ def main():
     for line in str(config).split('\n'):
         logger.debug(line)
 
-    df = df_results(**config)
+    df = df_results(**config['load'])
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
     df = df_filter_parse_args(df, parser=parser, argv=filter_args, **config)
