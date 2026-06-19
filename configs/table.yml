@@ -21,6 +21,7 @@ hidden_index:
   - oods
   - workers
   - epoch
+  - path
 
 flash: True
 

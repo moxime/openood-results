@@ -190,6 +190,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     c.update(args)
-    set_loggers(**c.logger)
+    # set_loggers(**c.logger)
 
-    print(c.config_keys)
+    print(parser)

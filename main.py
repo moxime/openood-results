@@ -28,15 +28,12 @@ def main():
 
     config = ConfigDict()
 
-    parser = argparse.ArgumentParser()
     parser = config.create_parser()
-
-    # subparsers = parser.add_subparsers()
-    # parser_filter = subparsers.add_parser('filter', help='table filter help')
 
     args, filter_args = parser.parse_known_args(argv)
 
     config.update(args)
+
     config.setup()
     set_loggers(**config['logger'])
 

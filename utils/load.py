@@ -87,7 +87,7 @@ def save_config(path, c, config_keys=CONFIG_YML, **kw):
     # TBF
 
 
-def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
+def sample_config(parsed_config, key, **config_keys):
     """sample config dict wrt a key_dict
 
     --config is a config dict (loaded from config.yml)
@@ -101,31 +101,38 @@ def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
     config
 
     """
+
+    assert key is None or not config_keys
+
     if parsed_config is None:
         return
 
-    if isinstance(config_keys, dict):
-        for k in config_keys:
+    if config_keys:
+        for k, v in config_keys.items():
             if k in parsed_config:
-                yield from sample_config(parsed_config[k], config_keys=config_keys[k])
-        return
-
-    if isinstance(config_keys, list):
-        for k in config_keys:
-            #  print('***', parsed_config, '***', k)
-            yield from sample_config(parsed_config, k)
+                if isinstance(v, dict):
+                    yield from sample_config(parsed_config[k], None, **v)
+                elif isinstance(v, (tuple, list)):
+                    for _ in v:
+                        yield from sample_config(parsed_config[k], _)
+                else:
+                    yield from sample_config(parsed_config[k], v)
         return
 
     if isinstance(parsed_config, dict):
         for k in parsed_config:
-            yield from sample_config(parsed_config[k], config_keys='{}_{}'.format(config_keys, k))
+            yield from sample_config(parsed_config[k], '{}_{}'.format(key, k))
         return
 
-    yield config_keys, parsed_config
+    yield key, parsed_config
 
 
-def df_exp(path, **kw):
+def df_exp(path, root='./results', **kw):
+    """
+    kw[load] forwarded to read_csv, load_config,
+    kw[config_keys] forwarded to sample_config
 
+    """
     path = Path(path)
 
     if not path.exists() or not path.is_dir():
@@ -142,7 +149,9 @@ def df_exp(path, **kw):
         config = {'dataset': {'name': 'unknown'}}
         logger.debug('Did not find a config file in {}, default one is used'.format(path))
 
-    parsed_config = dict(sample_config(config, **kw))
+    parsed_config = dict(sample_config(config, None, **kw['config_keys']))
+
+    parsed_config['path'] = path
 
     for k, v in parsed_config.items():
         if isinstance(v, list):
@@ -153,15 +162,19 @@ def df_exp(path, **kw):
     return df
 
 
-def fetch_results(results_directory='./results', **kw):
-
+def fetch_results(results_directory='./results', root=None, **kw):
+    """
+    kw forwarded to df_exp
+    """
     d = Path(results_directory)
+    if root is None:
+        root = d
 
     try:
-        yield df_exp(d, **kw)
+        yield df_exp(d, root=root, **kw)
     except FileNotFoundError:
         for s in [_ for _ in d.iterdir() if _.is_dir()]:
-            yield from fetch_results(results_directory=s, **kw)
+            yield from fetch_results(results_directory=s, root=root, **kw)
 
 
 if __name__ == '__main__':
