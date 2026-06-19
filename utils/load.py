@@ -6,6 +6,7 @@ from pathlib import Path
 from collections import defaultdict
 import numpy as np
 import pandas as pd
+from .table import ResDF
 
 OOD_CSV = 'ood.csv'
 CONFIG_YML = 'config.yml'
@@ -190,7 +191,7 @@ def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
 
     if flash:
         try:
-            df = pd.read_csv(csv_path, parse_dates=parse_dates)
+            df = ResDF(pd.read_csv(csv_path, parse_dates=parse_dates))
             df.set_index([_ for _ in df.columns if _ not in df_columns], inplace=True)
         except FileNotFoundError:
             logger.warning('Flash df is true but {} does not exist, will fetch results'.format(csv_path))
@@ -205,19 +206,11 @@ def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
         df.to_csv(csv_path)
         logger.info('Table saved in {}'.format(csv_path))
 
-    kept_cols = [_ for _ in df.columns if df_columns.get(_)]
+    removed_cols = [_ for _ in df.columns if not df_columns.get(_)]
 
-    df = df[kept_cols]
+    df.drop(removed_cols, axis='columns', inplace=True)
 
     df.rename(columns=df_columns, inplace=True)
-
-    df.drop_index = None  # to suppress warning
-    df.drop_index = {}
-
-    for n in df.index.names:
-        values = set(df.index.get_level_values(n))
-        if len(values) == 1:
-            df.drop_index[n] = values
 
     t0 -= time.time()
 
@@ -254,7 +247,7 @@ def concatenate_df(*dfs, index_fill_values={}, **kw):
 
         df_.append(df)
 
-    return pd.concat(df_)
+    return ResDF(pd.concat(df_))
 
 
 if __name__ == '__main__':

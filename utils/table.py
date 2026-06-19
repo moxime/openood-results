@@ -1,6 +1,7 @@
 import logging
 import argparse
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -20,103 +21,103 @@ def ftype(o):
     return _type
 
 
-def df_sort_index(df, index_order=['set', '...', 'ood', 'epoch', 'date'], index_dependencies={}, **kw):
+class ResDF(pd.DataFrame):
 
-    index_names = list(df.index.names)
+    drop_index = {}
 
-    try:
-        dots = index_order.index('...')
-        pre_sort = index_order[:dots]
-        post_sort = index_order[dots+1:]
-    except ValueError:
-        pre_sort = index_order
-        post_sort = []
+    def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
+                             index_dependencies={}, **kw):
 
-    logger.debug('Index order: {} ... {}'.format(', '.join(pre_sort), ', '.join(post_sort)))
+        index_names = list(self.index.names)
 
-    index_order_ = [*pre_sort,
-                    *[_ for _ in index_names if _ not in [*pre_sort, *post_sort]],
-                    *post_sort]
+        try:
+            dots = index_order.index('...')
+            pre_sort = index_order[:dots]
+            post_sort = index_order[dots+1:]
+        except ValueError:
+            pre_sort = index_order
+            post_sort = []
 
-    index_order = []
-    for i in index_order_:
-        index_order.append(i)
-        if i in index_dependencies:
-            for _ in index_dependencies[i]:
-                if _ in index_order:
-                    index_order.remove(_)
-                    index_order.append(_)
+        logger.debug('Index order: {} ... {}'.format(', '.join(pre_sort), ', '.join(post_sort)))
 
-    logger.debug('Index order: {}'.format(', '.join(index_order)))
-    df.reset_index(inplace=True)
-    df.set_index(index_order, inplace=True)
-    df.sort_index(inplace=True)
+        index_order_ = [*pre_sort,
+                        *[_ for _ in index_names if _ not in [*pre_sort, *post_sort]],
+                        *post_sort]
 
-    return df
+        index_order = []
+        for i in index_order_:
+            index_order.append(i)
+            if i in index_dependencies:
+                for _ in index_dependencies[i]:
+                    if _ in index_order:
+                        index_order.remove(_)
+                        index_order.append(_)
 
+        logger.debug('Index order: {}'.format(', '.join(index_order)))
+        super().reset_index(inplace=True)
+        super().set_index(index_order, inplace=True)
+        super().sort_index(inplace=True)
 
-def df_filter_parse_args(df, hidden_index=['exp'], parser=None, argv=None, drop=True, **kw):
+    def drop_index_level(self, hidden_index=['exp'], drop_unique=True, show=[], **kw):
+        hidden = set(self.index.names) & set(hidden_index)
 
-    if not parser:
-        parser = argparse.ArgumentParser()
+        for k in self.index.names:
+            values = set(self.index.get_level_values(k))
+            if k in show:
+                continue
+            if (len(values) == 1 and drop_unique) or k in hidden:
+                self.drop_index[k] = values
 
-    for name in df.index.names:
-        values = list(set(df.index.get_level_values(name)))
-        while True:
-            try:
-                values.remove(np.nan)
-            except ValueError:
-                break
+        if len(self.drop_index) == len(self.index.names):
+            self.drop_index.pop('job')
+        logger.debug('hidden index: {}'.format(', '.join(self.drop_index)))
+        for _ in self.drop_index:
+            self.index = self.index.droplevel(_)
 
-        values_ = ','.join(map(str, values))
-        if len(values_) > 50:
-            values_ = values_[:47]+'...'
+    def filter_parse_args(self, parser=None, argv=None, **kw):
 
-        logger.debug('Adding parser argument --{} of type {} '
-                     '({} default values: {})'.format(name, type(values[0]).__name__,
-                                                      len(values), values_))
+        if not parser:
+            parser = argparse.ArgumentParser()
 
-        parser.add_argument('--{}'.format(name), nargs='*',
-                            dest='filter.{}'.format(name),
-                            default=values, type=ftype(values[0]))
+        for name in self.index.names:
+            values = list(set(self.index.get_level_values(name)))
+            while True:
+                try:
+                    values.remove(np.nan)
+                except ValueError:
+                    break
 
-    hidden = set(df.index.names) & set(hidden_index)
-    logger.debug('hidden index: {}'.format(', '.join(hidden)))
-    parser.add_argument('--show', nargs='*', choices=hidden, default=[])
-    parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
+            values_ = ','.join(map(str, values))
+            if len(values_) > 50:
+                values_ = values_[:47]+'...'
 
-    df = df_sort_index(df, **kw)
+            logger.debug('Adding parser argument --{} of type {} '
+                         '({} default values: {})'.format(name, type(values[0]).__name__,
+                                                          len(values), values_))
 
-    if argv:
-        args, _ = parser.parse_known_args(argv)
+            parser.add_argument('--{}'.format(name), nargs='*',
+                                dest='filter.{}'.format(name),
+                                default=values, type=ftype(values[0]))
 
-        drop_index = df.drop_index
-        for k in df.index.names:
-            df_len = len(df)
-            kept = vars(args)['filter.{}'.format(k)]
-            values_before = set(df.index.get_level_values(k))
-            df = df.iloc[df.index.isin(kept, level=k)]
-            values = set(df.index.get_level_values(k))
-            logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(df),
-                                                         kept if len(values) < len(values_before) else ''))
-            if len(values) == 1 or k in hidden:
-                drop_index[k] = values
+        parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
 
-        if args.last:
-            df = df.sort_index(level='date')
-        df = df.iloc[-args.last:]
+        self.sort_index()
 
-        for _ in args.show:
-            drop_index.pop(_)
+        if argv:
+            args, _ = parser.parse_known_args(argv)
 
-        df.drop_index = None  # to suppress warning
-        df.drop_index = drop_index
+            for k in self.index.names:
+                df_len = len(self)
+                kept = vars(args)['filter.{}'.format(k)]
+                values_before = set(self.index.get_level_values(k))
+                self.drop(self.index[~self.index.isin(kept, level=k)], inplace=True)
+                values = set(self.index.get_level_values(k))
+                logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
+                                                             kept if len(values) < len(values_before) else ''))
 
-        if drop:
-            for _ in df.drop_index:
-                df.index = df.index.droplevel(_)
-
-    return df
+            if args.last:
+                self.sort_index(level='date')
+                self.drop(self.index[:--args.last], inplace=True)
 
 
 if __name__ == '__main__':

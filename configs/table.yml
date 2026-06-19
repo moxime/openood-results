@@ -8,6 +8,8 @@ table:
     - epoch
     - path
 
+  show: []
+  drop_unique: True
   index_order: ['set', 'net', '...', 'ood', 'phase', 'epoch', 'date', 'job']
 
   index_dependencies:

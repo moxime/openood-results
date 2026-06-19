@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 def main():
     import sys
     import argparse
-    from .utils import ConfigDict, set_loggers, df_results, df_filter_parse_args
+    from .utils import ConfigDict, set_loggers, df_results
     import pandas as pd
 
     argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
@@ -45,7 +45,8 @@ def main():
     df = df_results(**config['load'])
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
-    df = df_filter_parse_args(df, parser=parser, argv=filter_args, **config['table'])
+    df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
+    df.drop_index_level(**config['table'])
 
     df.sort_index(inplace=True)
 
