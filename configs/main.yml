@@ -4,7 +4,7 @@ logger:
   logger:
   configdict:
   load: 
-  tables:
+  table:
   filters:  
 
 load:
@@ -26,10 +26,26 @@ load:
   config_yml: config.yml
 
   flash: True
+
+  index_fill_values:
+    epoch: 0
+    epochs: 0
+    it: 0
+    margin: 0.
+    mu_: none
+    phase: none
+    gasless: False
+
+args:
+  aliases:
+    logger.main: [--log, --debug:debug]
+    logger.__default__: [--full-log]
+    load.results_directory: [-r]
+    no-load.flash: [--reload]
   
-aliases:
-  logger.main: [--log, --debug:debug]
-  logger.__default__: --full-log
-  load.results_directory: -r
-  no-load.flash: --reload
-  
+  exclude:
+    - args
+    - load.config_keys
+    - table.index_dependencies
+    - load.index_fill_values
+    - load.csv_index

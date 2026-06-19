@@ -45,7 +45,7 @@ def main():
     df = df_results(**config['load'])
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
-    df = df_filter_parse_args(df, parser=parser, argv=filter_args, **config)
+    df = df_filter_parse_args(df, parser=parser, argv=filter_args, **config['table'])
 
     df.sort_index(inplace=True)
 

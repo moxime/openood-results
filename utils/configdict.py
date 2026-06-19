@@ -116,29 +116,26 @@ class ConfigDict(dict):
         return type(self)(_registering_default=False,
                           **{'{}{}'.format(prefix, _): self[k][_] for _ in self[k]})
 
-    def create_parser(self, parser=None, prefix=[], exclude=['config_keys'], include=None, aliases='aliases'):
+    def create_parser(self, parser=None, prefix=[], exclude=None, aliases=None):
 
-        if isinstance(aliases, str):
-            exclude.append(aliases)
-            aliases = self[aliases]
+        if aliases is None:
+            aliases = self['args']['aliases']
 
-        if include is None:
-            include = set(self)
-
-        include = include - set(exclude)
+        if exclude is None:
+            exclude = self['args']['exclude']
 
         if not parser:
             parser = argparse.ArgumentParser()
 
         for k, v in self.items():
-            if k not in include:
+            arg_name = '.'.join(prefix + [k])
+            if arg_name in exclude:
                 continue
 
             if isinstance(v, type(self)):
-                v.create_parser(parser=parser, prefix=prefix + [k], aliases=aliases)
+                v.create_parser(parser=parser, prefix=prefix + [k], exclude=exclude, aliases=aliases)
                 continue
 
-            arg_name = '.'.join(prefix + [k])
             arg_alias = []
             if arg_name in aliases:
                 arg_alias = aliases[arg_name]
@@ -164,7 +161,7 @@ class ConfigDict(dict):
             else:
                 argtype = str if v is None else type(v)
                 nargs = None
-            parser.add_argument(*args, type=argtype, nargs=nargs, default=v)
+            parser.add_argument(*args, type=argtype, nargs=nargs, default=v, metavar=k.upper())
 
         return parser
 
