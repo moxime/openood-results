@@ -8,8 +8,11 @@ df_columns:
 index_fill_values:
   epoch: 0
   epochs: 0
-  param_mu_alt: none
+  it: 0
   margin: 0.
+  mu_: none
+  phase: none
+  gasless: False
 
 hidden_index:
   - exp
@@ -27,6 +30,8 @@ index_order: ['set', 'net', '...', 'ood', 'phase', 'epoch', 'date', 'job']
 
 index_dependencies:
   beta: [s_ood]
+  epochs: [it]
+  lr: [wd]
 
 create_col:
   iter: \chunk * (1 + max(\id_pad, 0) + max(\ood_pad, 0) + \self_pad) * \epochs / \batch_size

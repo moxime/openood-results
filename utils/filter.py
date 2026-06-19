@@ -320,7 +320,7 @@ if __name__ == '__main__':
     def test_float():
         for s in ('..', '1 3 4', 'not 1 2', '1..3', 'not ..3', '1', 'not 1'):
             f = FloatFilter.from_string(s)
-            print('{:10}'.format(str(f)), end=': ')
+            print('{:20}'.format(str(f)), end=': ')
             for x in (2, np.inf, 1, 0):
                 print('{}: {}'.format(x, f(x)), end=', ')
             print()
@@ -334,8 +334,8 @@ if __name__ == '__main__':
                 print('{}: {}'.format(x, f(x)), end=', ')
             print()
 
-    # test_float()
-    # test_string()
+    test_float()
+    test_string()
 
     sfilters = [ConfigFilter.from_string(_) for _ in ('foo*', '*bar', '1..3')]
 

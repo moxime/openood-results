@@ -10,6 +10,21 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def ftype(o):
+
+    def _type(s):
+
+        if s.lower() in ('null', 'none'):
+            return None
+
+        if isinstance(o, bool):
+            return s.lower() in ('true', 'yes')
+
+        return type(o)(s)
+
+    return _type
+
+
 def concatenate(*dfs, index_fill_values={}, **kw):
 
     index_dict = defaultdict(list)
@@ -43,7 +58,7 @@ def concatenate(*dfs, index_fill_values={}, **kw):
 
 
 def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
-               epoch='last', parse_dates=['date'], flash=False, **kw):
+               parse_dates=['date'], flash=False, **kw):
 
     t0 = time.time()
     res_dir = kw.get('results_directory')
@@ -134,9 +149,17 @@ def df_filter_parse_args(df, hidden_index=['exp'], parser=None, argv=None, drop=
             except ValueError:
                 break
 
+        values_ = ','.join(map(str, values))
+        if len(values_) > 50:
+            values_ = values_[:47]+'...'
+
+        logger.debug('Adding parser argument --{} of type {} '
+                     '({} default values: {})'.format(name, type(values[0]).__name__,
+                                                      len(values), values_))
+
         parser.add_argument('--{}'.format(name), nargs='*',
                             dest='filter.{}'.format(name),
-                            default=values, type=type(values[0]))
+                            default=values, type=ftype(values[0]))
 
     hidden = set(df.index.names) & set(hidden_index)
     logger.debug('hidden index: {}'.format(', '.join(hidden)))
@@ -151,9 +174,12 @@ def df_filter_parse_args(df, hidden_index=['exp'], parser=None, argv=None, drop=
         drop_index = df.drop_index
         for k in df.index.names:
             df_len = len(df)
-            df = df.iloc[df.index.isin(vars(args)['filter.{}'.format(k)], level=k)]
+            kept = vars(args)['filter.{}'.format(k)]
+            values_before = set(df.index.get_level_values(k))
+            df = df.iloc[df.index.isin(kept, level=k)]
             values = set(df.index.get_level_values(k))
-            logger.debug('Filtering {} {}->{}'.format(k, df_len, len(df)))
+            logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(df),
+                                                         kept if len(values) < len(values_before) else ''))
             if len(values) == 1 or k in hidden:
                 drop_index[k] = values
 

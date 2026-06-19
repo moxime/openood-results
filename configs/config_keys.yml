@@ -2,6 +2,7 @@ config_keys:
 
   dataset:
     name: set
+    normalization_type: preproc
 
   ood_dataset:
     name: oods
@@ -26,7 +27,11 @@ config_keys:
 
   postprocessor:
     name: method
-    postprocessor_args: param
+    postprocessor_args:
+      mu_ood: mu_
+      max_iterations_per_phase: it_max
+      iterations_per_phase: it
+      gasless: gasless
     padding:
       id: id_pad
       ood: ood_pad
@@ -35,6 +40,7 @@ config_keys:
     ft:
       batch_size: ft_batch_size
       epochs: epochs
+      iterations_per_phase: it
       wd: wd
       lr: lr
       beta: beta

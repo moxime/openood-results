@@ -91,3 +91,7 @@ class Tree:
         subtrees = '\n'.join([repr(subtree, prefix=prefix+'   ') for subtree in self.subtrees])
 
         return firstline + subtrees
+
+
+if __name__ == '__main__':
+    pass

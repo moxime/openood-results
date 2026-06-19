@@ -30,7 +30,7 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
 
     if 'epoch' in df:
         epochs = max(df['epoch'])
-        df['phase'] = df['epoch'].map(lambda e: {0: 'start', epochs // 2: 'mid', epochs: 'end'}.get(e))
+        df['phase'] = df['epoch'].map(lambda e: {0: '0start', epochs // 4: '1mid', epochs: '2end'}.get(e))
 
     index_labels = df.columns[df.columns.isin(list(csv_index))]
 
@@ -101,6 +101,9 @@ def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
     config
 
     """
+    if parsed_config is None:
+        return
+
     if isinstance(config_keys, dict):
         for k in config_keys:
             if k in parsed_config:
@@ -118,9 +121,7 @@ def sample_config(parsed_config, config_keys=CONFIG_KEYS, **kw):
             yield from sample_config(parsed_config[k], config_keys='{}_{}'.format(config_keys, k))
         return
 
-    if parsed_config is not None:
-        # print(config_keys, '->', parsed_config)
-        yield config_keys, parsed_config
+    yield config_keys, parsed_config
 
 
 def df_exp(path, **kw):
