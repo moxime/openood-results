@@ -36,13 +36,13 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
         df['phase'] = df['epoch'].map(lambda e: {0: '0start', epochs // 4: '1mid', epochs: '2end'}.get(e))
 
     index_labels = df.columns[df.columns.isin(list(csv_index))]
-
     df.set_index(list(index_labels), inplace=True, append=False)
+
     if not isinstance(df.index, pd.MultiIndex):
         df.index = pd.MultiIndex.from_arrays([df.index], names=[df.index.name])
     df.index.rename(csv_index, inplace=True)
 
-    return df
+    return df.drop(df.index[df.isnull().all(axis=1)])
 
 
 class ConfigLoader(yaml.SafeLoader):
@@ -142,8 +142,9 @@ def df_exp(path, root='./results', **kw):
         raise FileNotFoundError(path)
 
     df = read_csv(path, **kw)
+    df_len = len(df)
 
-    logger.debug('Found a csv in {}'.format(path))
+    logger.debug('Found a csv of len {} in {}'.format(df_len, path))
 
     try:
         config = load_config(path, **kw)
