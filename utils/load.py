@@ -1,7 +1,7 @@
 import logging
 import os
-import time
 import yaml
+import time
 from pathlib import Path
 from collections import defaultdict
 import numpy as np
@@ -42,7 +42,26 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
         df.index = pd.MultiIndex.from_arrays([df.index], names=[df.index.name])
     df.index.rename(csv_index, inplace=True)
 
-    return df.drop(df.index[df.isnull().all(axis=1)])
+    df.drop(df.index[df.isnull().all(axis=1)], inplace=True)
+
+    df['spaths'] = pd.Series(score_paths(path.parent))
+
+    return df
+
+
+def score_paths(path, **kw):
+
+    def tryint(s):
+
+        try:
+            return int(s)
+        except ValueError:
+            return s
+
+    path = Path(path)
+
+    return {(*[], *map(tryint, _.parent.name.split('-')[1:]), _.stem): _
+            for _ in path.glob('**/*.npz')}
 
 
 class ConfigLoader(yaml.SafeLoader):
@@ -77,6 +96,7 @@ def load_config(path, config_yml=CONFIG_YML, **kw):
     c = _load_raw_config(path)
     date = pd.Timestamp(os.path.getmtime(path), unit="s", tz='Europe/Paris')
     c['exp_date'] = date
+    c['path'] = path
     # date = pd.Timestamp(os.path.getctime(path), unit="s")
     # c['create_date'] = date
     #    c = yaml.load(f, Loader=yaml.UnsafeLoader)  # DANGEROUS on untrusted files
@@ -130,10 +150,8 @@ def sample_config(parsed_config, key, **config_keys):
     yield key, parsed_config
 
 
-def df_exp(path, root='./results', **kw):
+def df_exp(path, root='./results', config_keys={}, **kw):
     """
-    kw[load] forwarded to read_csv, load_config,
-    kw[config_keys] forwarded to sample_config
 
     """
     path = Path(path)
@@ -153,13 +171,11 @@ def df_exp(path, root='./results', **kw):
         config = {'dataset': {'name': 'unknown'}}
         logger.debug('Did not find a config file in {}, default one is used'.format(path))
 
-    parsed_config = dict(sample_config(config, None, **kw['config_keys']))
-
-    parsed_config['path'] = path
+    parsed_config = dict(sample_config(config, None, **config_keys))
 
     for k, v in parsed_config.items():
         if isinstance(v, list):
-            v = '-'.join(sorted(v))
+            v = '-'.join(map(str, sorted(v)))
         df[k] = v
     df.set_index(list(parsed_config), append=True, inplace=True)
     logger.debug('df ({}) filled up with {} indexes'.format(len(df), len(parsed_config)))
@@ -256,6 +272,14 @@ if __name__ == '__main__':
     import time
     import sys
     from pathlib import Path
+
+    print(sys.argv[1])
+    df = df_exp(sys.argv[1])
+
+    print(df.index.names)
+    print(df.columns)
+
+    sys.exit()
     p = Path('/tmp/config.yml')
     c = load_config(p)
 
