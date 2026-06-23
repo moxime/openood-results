@@ -130,7 +130,7 @@ def sample_config(parsed_config, key, **config_keys):
     yield key, parsed_config
 
 
-def df_exp(path, root='./results', **kw):
+def df_exp(path, root='./results', config_keys={}, **kw):
     """
     kw[load] forwarded to read_csv, load_config,
     kw[config_keys] forwarded to sample_config
@@ -152,13 +152,13 @@ def df_exp(path, root='./results', **kw):
         config = {'dataset': {'name': 'unknown'}}
         logger.debug('Did not find a config file in {}, default one is used'.format(path))
 
-    parsed_config = dict(sample_config(config, None, **kw['config_keys']))
+    parsed_config = dict(sample_config(config, None, **config_keys))
 
     parsed_config['path'] = path
 
     for k, v in parsed_config.items():
         if isinstance(v, list):
-            v = '-'.join(sorted(v))
+            v = '-'.join(map(str, sorted(v)))
         df[k] = v
     df.set_index(list(parsed_config), append=True, inplace=True)
     logger.debug('df ({}) filled up with {} indexes'.format(len(df), len(parsed_config)))
@@ -255,6 +255,14 @@ if __name__ == '__main__':
     import time
     import sys
     from pathlib import Path
+
+    df = df_exp(sys.argv[1])
+
+    print(df.index.names)
+    print(df.columns)
+
+    sys.exit()
+
     p = Path('/tmp/config.yml')
     c = load_config(p)
 
