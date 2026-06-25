@@ -33,8 +33,8 @@ def main():
     args, filter_args = parser.parse_known_args(argv)
 
     config.update(args)
-
     config.setup()
+
     set_loggers(**config['logger'])
 
     logger.info('Looking for results in {}'.format(config.get('results_directory')))
@@ -44,30 +44,17 @@ def main():
 
     df = df_results(**config['load'])
 
+    df.reorder_index_levels(**config['table'])
+
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
     df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
-    df.drop_index_level(**config['table'])
-
     df.sort_index(inplace=True)
 
     if not len(df):
         logger.error('No df (all results are filtered out')
         return
 
-    with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-        df_str = df.to_string(float_format='{:.1f}'.format)
-
-    df_width = max(len(_) for _ in df_str.split('\n'))
-    print(df_str)
-    print('='*df_width)
-    # print(df.index.names)
-    for _, v in df.drop_index.items():
-        if len(v) > 1:
-            df.drop_index[_] = '--'
-        else:
-            df.drop_index[_] = next(iter(v))
-
-    print(ConfigDict(df.drop_index, _registering_default=False))
+    print(df.to_string(**config['table']))
 
 
 if __name__ == '__main__':

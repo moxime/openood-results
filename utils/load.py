@@ -44,12 +44,12 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
 
     df.drop(df.index[df.isnull().all(axis=1)], inplace=True)
 
-    df['spaths'] = pd.Series(score_paths(path.parent))
+    df['SCORES'] = pd.Series(score_paths(path.parent))
 
     return df
 
 
-def score_paths(path, **kw):
+def score_paths(path):
 
     def tryint(s):
 
@@ -182,11 +182,11 @@ def df_exp(path, root='./results', config_keys={}, **kw):
     return df
 
 
-def fetch_results(results_directory='./results', root=None, **kw):
+def fetch_results(result_directory='./results', root=None, **kw):
     """
     kw forwarded to df_exp
     """
-    d = Path(results_directory)
+    d = Path(result_directory)
     if root is None:
         root = d
 
@@ -194,44 +194,47 @@ def fetch_results(results_directory='./results', root=None, **kw):
         yield df_exp(d, root=root, **kw)
     except FileNotFoundError:
         for s in [_ for _ in d.iterdir() if _.is_dir()]:
-            yield from fetch_results(results_directory=s, root=root, **kw)
+            yield from fetch_results(result_directory=s, root=root, **kw)
 
 
-def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
+def df_results(result_directory='./results', df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
                parse_dates=['date'], flash=False, **kw):
     """
 
     """
     t0 = time.time()
-    res_dir = kw.get('results_directory')
-    csv_path = Path(res_dir) / 'table.csv'
+    csv_path = Path(result_directory) / 'table.csv'
 
     if flash:
+
         try:
             df = ResDF(pd.read_csv(csv_path, parse_dates=parse_dates))
-            df.set_index([_ for _ in df.columns if _ not in df_columns], inplace=True)
+            i = list(df).index('/')
+            df.set_index(list(df)[:i], inplace=True)
+            df.drop('/', axis=1, inplace=True)
+            logger.info('Flashed table from {}'.format(csv_path))
         except FileNotFoundError:
             logger.warning('Flash df is true but {} does not exist, will fetch results'.format(csv_path))
+            flash = False
+        except ValueError:
+            logger.warning('Flash df is true but "/" col does not exist, will fetch results'.format(csv_path))
             flash = False
 
     if not flash:
 
-        logger.info('Looking for results in {}'.format(res_dir))
-        list_of_dfs = list(fetch_results(**kw))
+        logger.info('Looking for results in {}'.format(result_directory))
+        list_of_dfs = list(fetch_results(result_directory=result_directory, **kw))
         logger.info('Found {} results in {:.1f}s'.format(len(list_of_dfs), time.time() - t0))
         df = concatenate_df(*list_of_dfs, **kw)
+        df.insert(0, '/', None)
         df.to_csv(csv_path)
         logger.info('Table saved in {}'.format(csv_path))
-
-    removed_cols = [_ for _ in df.columns if not df_columns.get(_)]
-
-    df.drop(removed_cols, axis='columns', inplace=True)
-
-    df.rename(columns=df_columns, inplace=True)
+        df.drop('/', axis=1, inplace=True)
 
     t0 -= time.time()
 
     logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
+
     return df
 
 
@@ -244,7 +247,6 @@ def concatenate_df(*dfs, index_fill_values={}, **kw):
 
     for _ in index_dict:
         index_dict[_] = np.exp(index_dict[_]).mean()
-    # print(dict(index_dict))
     sorted_index = sorted(index_dict, key=index_dict.get)
 
     df_ = []

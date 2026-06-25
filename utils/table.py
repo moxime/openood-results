@@ -119,6 +119,26 @@ class ResDF(pd.DataFrame):
                 self.sort_index(level='date')
                 self.drop(self.index[:--args.last], inplace=True)
 
+    def to_string(self, float_format='{:.1f}'.format, **kw):
+
+        self.drop_index_level(**kw)
+
+        with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
+            df_str = super().to_string(float_format=float_format)
+
+        df_width = max(len(_) for _ in df_str.split('\n'))
+
+        df_str += '\n'
+        df_str += '=' * df_width + '\n'
+
+        for k, v in self.drop_index.items():
+            if len(v) > 1:
+                df_str += '{}: [{}]\n'.format(k, len(v))
+            else:
+                df_str += '{}: {}\n'.format(k, *v)
+
+        return df_str
+
 
 if __name__ == '__main__':
     from utils.configdict import ConfigDict

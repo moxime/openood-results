@@ -8,7 +8,7 @@ logger:
   filters:  
 
 load:
-  results_directory: ./results
+  result_directory: ./results
 
   ood_csv: ood.csv
   csv_index:
@@ -21,6 +21,7 @@ load:
     ACC: 
     AUPR_IN:
     AUPR_OUT:
+    score_path:
   parse_dates: [date]
 
   config_yml: config.yml
@@ -35,12 +36,14 @@ load:
     mu_: none
     phase: none
     gasless: False
+    pad_ext: none
+    score_path: none
 
 args:
   aliases:
     logger.main: [--log, --debug:debug]
     logger.__default__: [--full-log]
-    load.results_directory: [-r]
+    load.result_directory: [-r]
     no-load.flash: [--reload]
   
   exclude:
