@@ -1,7 +1,7 @@
 import logging
 import os
-import time
 import yaml
+import time
 from pathlib import Path
 from collections import defaultdict
 import numpy as np
@@ -36,13 +36,35 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
         df['phase'] = df['epoch'].map(lambda e: {0: '0start', epochs // 4: '1mid', epochs: '2end'}.get(e))
 
     index_labels = df.columns[df.columns.isin(list(csv_index))]
-
     df.set_index(list(index_labels), inplace=True, append=False)
+
     if not isinstance(df.index, pd.MultiIndex):
         df.index = pd.MultiIndex.from_arrays([df.index], names=[df.index.name])
     df.index.rename(csv_index, inplace=True)
 
+    df.drop(df.index[df.isnull().all(axis=1)], inplace=True)
+
+    df['SCORES'] = pd.Series(score_paths(path.parent))
+
+    df['has_scores'] = ~df['SCORES'].isna()
+    df.set_index('has_scores', append=True, inplace=True)
+
     return df
+
+
+def score_paths(path):
+
+    def tryint(s):
+
+        try:
+            return int(s)
+        except ValueError:
+            return s
+
+    path = Path(path)
+
+    return {(*[], *map(tryint, _.parent.name.split('-')[1:]), _.stem): _
+            for _ in path.glob('**/*.npz')}
 
 
 class ConfigLoader(yaml.SafeLoader):
@@ -77,6 +99,7 @@ def load_config(path, config_yml=CONFIG_YML, **kw):
     c = _load_raw_config(path)
     date = pd.Timestamp(os.path.getmtime(path), unit="s", tz='Europe/Paris')
     c['exp_date'] = date
+    c['path'] = path
     # date = pd.Timestamp(os.path.getctime(path), unit="s")
     # c['create_date'] = date
     #    c = yaml.load(f, Loader=yaml.UnsafeLoader)  # DANGEROUS on untrusted files
@@ -132,8 +155,6 @@ def sample_config(parsed_config, key, **config_keys):
 
 def df_exp(path, root='./results', config_keys={}, **kw):
     """
-    kw[load] forwarded to read_csv, load_config,
-    kw[config_keys] forwarded to sample_config
 
     """
     path = Path(path)
@@ -142,8 +163,9 @@ def df_exp(path, root='./results', config_keys={}, **kw):
         raise FileNotFoundError(path)
 
     df = read_csv(path, **kw)
+    df_len = len(df)
 
-    logger.debug('Found a csv in {}'.format(path))
+    logger.debug('Found a csv of len {} in {}'.format(df_len, path))
 
     try:
         config = load_config(path, **kw)
@@ -154,8 +176,6 @@ def df_exp(path, root='./results', config_keys={}, **kw):
 
     parsed_config = dict(sample_config(config, None, **config_keys))
 
-    parsed_config['path'] = path
-
     for k, v in parsed_config.items():
         if isinstance(v, list):
             v = '-'.join(map(str, sorted(v)))
@@ -165,11 +185,11 @@ def df_exp(path, root='./results', config_keys={}, **kw):
     return df
 
 
-def fetch_results(results_directory='./results', root=None, **kw):
+def fetch_results(result_directory='./results', root=None, **kw):
     """
     kw forwarded to df_exp
     """
-    d = Path(results_directory)
+    d = Path(result_directory)
     if root is None:
         root = d
 
@@ -177,44 +197,47 @@ def fetch_results(results_directory='./results', root=None, **kw):
         yield df_exp(d, root=root, **kw)
     except FileNotFoundError:
         for s in [_ for _ in d.iterdir() if _.is_dir()]:
-            yield from fetch_results(results_directory=s, root=root, **kw)
+            yield from fetch_results(result_directory=s, root=root, **kw)
 
 
-def df_results(df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
+def df_results(result_directory='./results', df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
                parse_dates=['date'], flash=False, **kw):
     """
 
     """
     t0 = time.time()
-    res_dir = kw.get('results_directory')
-    csv_path = Path(res_dir) / 'table.csv'
+    csv_path = Path(result_directory) / 'table.csv'
 
     if flash:
+
         try:
             df = ResDF(pd.read_csv(csv_path, parse_dates=parse_dates))
-            df.set_index([_ for _ in df.columns if _ not in df_columns], inplace=True)
+            i = list(df).index('/')
+            df.set_index(list(df)[:i], inplace=True)
+            df.drop('/', axis=1, inplace=True)
+            logger.info('Flashed table from {}'.format(csv_path))
         except FileNotFoundError:
             logger.warning('Flash df is true but {} does not exist, will fetch results'.format(csv_path))
+            flash = False
+        except ValueError:
+            logger.warning('Flash df is true but "/" col does not exist, will fetch results'.format(csv_path))
             flash = False
 
     if not flash:
 
-        logger.info('Looking for results in {}'.format(res_dir))
-        list_of_dfs = list(fetch_results(**kw))
+        logger.info('Looking for results in {}'.format(result_directory))
+        list_of_dfs = list(fetch_results(result_directory=result_directory, **kw))
         logger.info('Found {} results in {:.1f}s'.format(len(list_of_dfs), time.time() - t0))
         df = concatenate_df(*list_of_dfs, **kw)
+        df.insert(0, '/', None)
         df.to_csv(csv_path)
         logger.info('Table saved in {}'.format(csv_path))
-
-    removed_cols = [_ for _ in df.columns if not df_columns.get(_)]
-
-    df.drop(removed_cols, axis='columns', inplace=True)
-
-    df.rename(columns=df_columns, inplace=True)
+        df.drop('/', axis=1, inplace=True)
 
     t0 -= time.time()
 
     logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
+
     return df
 
 
@@ -227,7 +250,6 @@ def concatenate_df(*dfs, index_fill_values={}, **kw):
 
     for _ in index_dict:
         index_dict[_] = np.exp(index_dict[_]).mean()
-    # print(dict(index_dict))
     sorted_index = sorted(index_dict, key=index_dict.get)
 
     df_ = []
@@ -256,17 +278,17 @@ if __name__ == '__main__':
     import sys
     from pathlib import Path
 
-    df = df_exp(sys.argv[1])
+print(sys.argv[1])
+df = df_exp(sys.argv[1])
 
-    print(df.index.names)
-    print(df.columns)
+print(df.index.names)
+print(df.columns)
 
-    sys.exit()
+sys.exit()
+p = Path('/tmp/config.yml')
+c = load_config(p)
 
-    p = Path('/tmp/config.yml')
-    c = load_config(p)
-
-    yaml.dump(c, stream=sys.stdout,
-              default_flow_style=False,
-              sort_keys=False,
-              indent=2)
+yaml.dump(c, stream=sys.stdout,
+          default_flow_style=False,
+          sort_keys=False,
+          indent=2)
