@@ -5,7 +5,8 @@ logger:
   configdict:
   load: 
   table:
-  filters:  
+  filters:
+  scores:
 
 load:
   result_directory: ./results
@@ -45,3 +46,14 @@ args:
     - table.index_dependencies
     - load.index_fill_values
     - load.csv_index
+
+scores:
+  q:
+    compute: False
+    id: 0.1
+    ood:
+    max_compute: 10
+  plot: False
+  max_plots: 3
+  plots:
+    - hist
