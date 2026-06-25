@@ -24,7 +24,9 @@ table:
     ACC: 
     AUPR_IN:
     AUPR_OUT:
-    SCORES: 
+    SCORES:
+    ID_Q: id_q
+    OOD_Q: ood_q
 
   create_col:
     iter: \chunk * (1 + max(\id_pad, 0) + max(\ood_pad, 0) + \self_pad) * \epochs / \batch_size

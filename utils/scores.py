@@ -6,6 +6,52 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
+def has_scores(df, **kw):
+
+    assert 'has_scores' in df.index.names
+    assert 'SCORES' in df
+
+    index = df.index
+    index = index[index.isin([True], level='has_scores')]
+
+    if not len(index):
+        logger.error('No scores available')
+
+    if len(index) < len(df):
+        logger.warning('Some scores are not available')
+
+    logger.debug('{} results with scores available'.format(len(index)))
+    return df.loc[index]
+
+
+def get_scores(df, **kw):
+
+    df_with_scores = has_scores(df)
+    for idx, results in df_with_scores.iterrows():
+        yield idx, np.load(results['SCORES'])
+
+
+def compute_quantiles(df, id=None, ood=None, compute=True, max_compute=10, **kw):
+
+    if (not id and not ood) or not compute:
+        logger.info('No quantiles calculated')
+        return
+
+    if len(has_scores(df)) > max_compute:
+        logger.error('table too long ({}>{}), no quantile calculated')
+        return
+
+    for idx, scores in get_scores(df):
+        conf = scores['conf']
+        label = scores['label']
+        if id:
+            q = np.quantile(conf[label >= 0], id)
+            df.loc[idx, ('ID_Q')] = q
+        if ood:
+            q = np.quantile(conf[label < 0], id)
+            df.loc[idx, 'OOD_Q'] = q
+
+
 def plot_scores(df, plot=True, max_plots=3, wait=True, id_q=0.05, **kw):
 
     if not plot:

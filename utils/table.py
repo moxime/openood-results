@@ -35,6 +35,14 @@ class ResDF(pd.DataFrame):
         df.dropped_index = self.dropped_index.copy()
         return df
 
+    # def drop(self, labels=None, *, inplace=True, **kw):
+    #     if
+    #     df = self if inplace else self.copy()
+    #     pd.DataFrame.drop(df, *a, **kw, inplace=True)
+    #     if inplace:
+    #         return None
+    #     return df
+
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
 
@@ -68,7 +76,12 @@ class ResDF(pd.DataFrame):
         super().set_index(index_order, inplace=True)
         super().sort_index(inplace=True)
 
-    def drop_index_level(self, hidden_index=['exp'], drop_unique=True, show=[], **kw):
+    def drop_index_level(self, hidden_index=['exp'], drop_unique=True, show=[], inplace=True, **kw):
+        if not inplace:
+            df = self.copy()
+            df.drop_index_level(hidden_index=hidden_index, drop_unique=drop_unique, show=show,
+                                inplace=True, **kw)
+            return df
         hidden = set(self.index.names) & set(hidden_index)
 
         for k in self.index.names:
@@ -85,6 +98,12 @@ class ResDF(pd.DataFrame):
         for _ in self.dropped_index:
             if _ in self.index.names:
                 self.index = self.index.droplevel(_)
+
+    def restore_index(self, level):
+
+        idx = self.dropped_index.pop(level)
+        df[level] = idx
+        df.set_index(level, inplace=True, append=True)
 
     def filter_parse_args(self, parser=None, argv=None, **kw):
 
@@ -129,64 +148,59 @@ class ResDF(pd.DataFrame):
                 self.sort_index(level='date', inplace=True)
                 self.drop(self.index[:- --args.last], inplace=True)
 
-    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, float_format='{:.1f}'.format,
-                  _super_to_string=False, **kw):
-        if _super_to_string:
-            with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-                df_str = super().to_string(float_format=float_format)
+    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, float_format='{:.1f}'.format, **kw):
 
-            df_width = max(len(_) for _ in df_str.split('\n'))
-
-            df_str += '\n'
-            df_str += '=' * df_width + '\n'
-
-            for k, index in self.dropped_index.items():
-                v = set(index)
-                if len(v) > 1:
-                    df_str += '{}: [{}]\n'.format(k, len(v))
-                else:
-                    df_str += '{}: {}\n'.format(k, *v)
-
-            return df_str
-        df = self.copy()
-        df.drop_index_level(**kw)
+        df = self.drop_index_level(**kw, inplace=False)
 
         removed_cols = [_ for _ in df.columns if not columns.get(_)]
         df.drop(removed_cols, axis='columns', inplace=True)
         df.rename(columns=columns, inplace=True)
-        return df.to_string(float_format=float_format, _super_to_string=True)
+
+        with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
+            df_str = pd.DataFrame.to_string(df, float_format=float_format)
+
+        df_width = max(len(_) for _ in df_str.split('\n'))
+
+        df_str += '\n'
+        df_str += '=' * df_width + '\n'
+
+        for k, index in df.dropped_index.items():
+            v = set(index)
+            if len(v) > 1:
+                df_str += '{}: [{}]\n'.format(k, len(v))
+            else:
+                df_str += '{}: {}\n'.format(k, *v)
+
+        return df_str
 
 
 if __name__ == '__main__':
     from utils.configdict import ConfigDict
     from utils.logger import set_loggers
+    from utils.load import df_results
     import sys
 
     import argparse
 
-    argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
+    argv = '--load.result_dir ./results/lab-ia/main --ood old_mix'.split()
 
-    argv = None if sys.argv[0] else argv.split()
+    argv = None if sys.argv[0] else argv
 
     config = ConfigDict()
 
-    parser = argparse.ArgumentParser()
-    config.create_parser(parser=parser, exclude=['config_keys'])
+    parser = config.create_parser()
 
-    subparsers = parser.add_subparsers()
-
-    parser_filter = subparsers.add_parser('filter', help='table filter help')
-
-    args, _ = parser.parse_known_args(argv)
+    args, filter_args = parser.parse_known_args(argv)
 
     config.update(args)
-    set_loggers(**config)
 
-    df = df_results(**config)
-    df = df_filter_parse_args(df, **config, parser=parser_filter, argv=_)
+    set_loggers(**config.logger)
 
+    df = df_results(**config.load)
+    df.reorder_index_levels(**config.table)
+
+    unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config.table)
+
+    print(df.index.names)
     df.sort_index(inplace=True)
-    print(df.to_string())
-    print('='*20)
-    # print(df.index.names)
-    print(ConfigDict(df.drop_index, _registering_default=False))
+    print(df.to_string(**config.table))

@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 def main():
     import sys
     import argparse
-    from .utils import ConfigDict, set_loggers, df_results, plot_scores
+    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_quantiles
     import pandas as pd
 
     argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
@@ -35,19 +35,23 @@ def main():
     config.update(args)
     config.setup()
 
-    set_loggers(**config['logger'])
+    set_loggers(**config.logger)
 
-    logger.info('Looking for results in {}'.format(config['load'].get('result_directory')))
+    logger.info('Looking for results in {}'.format(config.load.result_directory))
 
     for line in str(config).split('\n'):
         logger.debug(line)
 
-    df = df_results(**config['load'])
-
-    df.reorder_index_levels(**config['table'])
+    df = df_results(**config.load)
+    df.reorder_index_levels(**config.table)
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
-    unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
+
+    # config.table.show.append('has_scores')
+    # config.table.columns.SCORES = 'SCORES'
+
+    unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config.table)
+    compute_quantiles(df, **config.scores.q)
 
     if unknown_args:
         logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
@@ -55,13 +59,11 @@ def main():
     if not len(df):
         logger.error('No df (all results are filtered out')
     else:
-        print(df.to_string(**config['table']))
+        print(df.to_string(**config.table))
 
     try:
-        config['table']['show'].append('has_scores')
-        config['table']['columns']['SCORES'] = 'SCORES'
-        df.drop_index_level(**config['table'])
-        plot_scores(df, **config['scores'], wait=True)
+        df.drop_index_level(**config.table)
+        plot_scores(df, **config.scores, wait=True)
     except ValueError:
         logger.error('No plot done')
 
