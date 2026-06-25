@@ -13,7 +13,8 @@ table:
   drop_unique: True
   show_dropped: True
   index_order: ['set', 'net', '...', 'ood', 'phase', 'epoch', 'date', 'job']
-
+  list_values:
+  
   index_dependencies:
     beta: [s_ood]
     epochs: [it]
@@ -30,5 +31,3 @@ table:
   create_col:
     iter: \chunk * (1 + max(\id_pad, 0) + max(\ood_pad, 0) + \self_pad) * \epochs / \batch_size
   
-plot:
-  show: False

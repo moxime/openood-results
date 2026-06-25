@@ -44,6 +44,7 @@ class ResDF(pd.DataFrame):
                         *[_ for _ in index_names if _ not in [*pre_sort, *post_sort]],
                         *post_sort]
 
+        index_order_ = [_ for _ in index_order_ if _ in index_names]
         index_order = []
         for i in index_order_:
             index_order.append(i)
@@ -81,7 +82,7 @@ class ResDF(pd.DataFrame):
 
         for name in self.index.names:
             values = list(set(self.index.get_level_values(name)))
-            while True:
+            while False:
                 try:
                     values.remove(np.nan)
                 except ValueError:
@@ -112,7 +113,6 @@ class ResDF(pd.DataFrame):
                 values = set(self.index.get_level_values(k))
                 logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
                                                              kept if len(values) < len(values_before) else ''))
-
             if args.last:
                 self.sort_index(level='date', inplace=True)
                 self.drop(self.index[:- --args.last], inplace=True)
@@ -121,6 +121,7 @@ class ResDF(pd.DataFrame):
         return []
 
     def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, show_dropped=True,
+                  list_values=None,
                   float_format='{:.1f}'.format, **kw):
 
         self.drop_index_level(**kw)
@@ -135,14 +136,25 @@ class ResDF(pd.DataFrame):
         df_width = max(len(_) for _ in df_str.split('\n'))
 
         df_str += '\n'
-        df_str += '=' * df_width + '\n'
 
         if show_dropped:
+            df_str += '=' * df_width + '\n'
             for k, v in self.drop_index.items():
+                if not v:
+                    df_str = '{}: --'.format(k)
+                    continue
                 if len(v) > 1:
                     df_str += '{}: [{}]\n'.format(k, len(v))
-                else:
-                    df_str += '{}: {}\n'.format(k, *v)
+                    continue
+                df_str += '{}: {}\n'.format(k, *v)
+
+        if list_values:
+            try:
+                values = set(self.index.get_level_values(list_values))
+                logger.info('{}: {}'.format(list_values,
+                                            ' -- '.join(map(str, values))))
+            except (ValueError, KeyError):
+                logger.error('{} not in index'.format(list_values))
 
         return df_str
 

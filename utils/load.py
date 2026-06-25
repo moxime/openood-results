@@ -63,7 +63,7 @@ def score_paths(path):
 
     path = Path(path)
 
-    return {(*[], *map(tryint, _.parent.name.split('-')[1:]), _.stem): _
+    return {(*[], *map(tryint, _.parent.name.split('-')[1:]), _.stem): _.relative_to(path)
             for _ in path.glob('**/*.npz')}
 
 
@@ -181,6 +181,8 @@ def df_exp(path, root='./results', config_keys={}, **kw):
             v = '-'.join(map(str, sorted(v)))
         df[k] = v
     df.set_index(list(parsed_config), append=True, inplace=True)
+    df['path'] = path.relative_to(root)
+    df.set_index('path', append=True, inplace=True)
     logger.debug('df ({}) filled up with {} indexes'.format(len(df), len(parsed_config)))
     return df
 
@@ -263,7 +265,7 @@ def concatenate_df(*dfs, index_fill_values={}, **kw):
 
         for c in sorted_index:
             if c not in index_frame.columns:
-                index_frame[c] = index_fill_values.get(c)
+                index_frame[c] = index_fill_values.get(c, 'none')
 
         df.index = pd.MultiIndex.from_frame(index_frame[sorted_index])
 
