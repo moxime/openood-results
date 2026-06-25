@@ -25,9 +25,9 @@ class ResDF(pd.DataFrame):
 
     def __init__(self, *a, **kw):
 
-        super().__init__(*a, **kw)
-        self.dropped_index = None
         self.dropped_index = {}  # pd.DataFrame()
+        super().__init__(*a, **kw)
+        # self.dropped_index = None
 
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
