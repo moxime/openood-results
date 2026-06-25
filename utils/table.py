@@ -25,9 +25,15 @@ class ResDF(pd.DataFrame):
 
     def __init__(self, *a, **kw):
 
-        self.dropped_index = {}  # pd.DataFrame()
         super().__init__(*a, **kw)
-        # self.dropped_index = None
+        self.dropped_index = None
+        self.dropped_index = {}
+
+    def copy(self):
+
+        df = type(self)(super().copy())
+        df.dropped_index = self.dropped_index.copy()
+        return df
 
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
@@ -66,17 +72,19 @@ class ResDF(pd.DataFrame):
         hidden = set(self.index.names) & set(hidden_index)
 
         for k in self.index.names:
-            values = set(self.index.get_level_values(k))
+            index_k = self.index.get_level_values(k)
+            values = set(index_k)
             if k in show:
                 continue
             if (len(values) == 1 and drop_unique) or k in hidden:
-                self.dropped_index[k] = values
+                self.dropped_index[k] = index_k
 
         if len(self.dropped_index) == len(self.index.names):
             self.dropped_index.pop('job')
         logger.debug('hidden index: {}'.format(', '.join(self.dropped_index)))
         for _ in self.dropped_index:
-            self.index = self.index.droplevel(_)
+            if _ in self.index.names:
+                self.index = self.index.droplevel(_)
 
     def filter_parse_args(self, parser=None, argv=None, **kw):
 
@@ -121,29 +129,32 @@ class ResDF(pd.DataFrame):
                 self.sort_index(level='date', inplace=True)
                 self.drop(self.index[:- --args.last], inplace=True)
 
-    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, float_format='{:.1f}'.format, **kw):
+    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, float_format='{:.1f}'.format,
+                  _super_to_string=False, **kw):
+        if _super_to_string:
+            with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
+                df_str = super().to_string(float_format=float_format)
 
-        self.drop_index_level(**kw)
+            df_width = max(len(_) for _ in df_str.split('\n'))
 
-        removed_cols = [_ for _ in self.columns if not columns.get(_)]
-        self.drop(removed_cols, axis='columns', inplace=True)
-        self.rename(columns=columns, inplace=True)
+            df_str += '\n'
+            df_str += '=' * df_width + '\n'
 
-        with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-            df_str = super().to_string(float_format=float_format)
+            for k, index in self.dropped_index.items():
+                v = set(index)
+                if len(v) > 1:
+                    df_str += '{}: [{}]\n'.format(k, len(v))
+                else:
+                    df_str += '{}: {}\n'.format(k, *v)
 
-        df_width = max(len(_) for _ in df_str.split('\n'))
+            return df_str
+        df = self.copy()
+        df.drop_index_level(**kw)
 
-        df_str += '\n'
-        df_str += '=' * df_width + '\n'
-
-        for k, v in self.dropped_index.items():
-            if len(v) > 1:
-                df_str += '{}: [{}]\n'.format(k, len(v))
-            else:
-                df_str += '{}: {}\n'.format(k, *v)
-
-        return df_str
+        removed_cols = [_ for _ in df.columns if not columns.get(_)]
+        df.drop(removed_cols, axis='columns', inplace=True)
+        df.rename(columns=columns, inplace=True)
+        return df.to_string(float_format=float_format, _super_to_string=True)
 
 
 if __name__ == '__main__':

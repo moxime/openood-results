@@ -52,15 +52,18 @@ def main():
     if unknown_args:
         logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
 
-    try:
-        plot_scores(df, **config['scores'])
-    except ValueError:
-        logger.error('No plot done')
-
     if not len(df):
         logger.error('No df (all results are filtered out')
     else:
         print(df.to_string(**config['table']))
+
+    try:
+        config['table']['show'].append('has_scores')
+        config['table']['columns']['SCORES'] = 'SCORES'
+        df.drop_index_level(**config['table'])
+        plot_scores(df, **config['scores'], wait=True)
+    except ValueError:
+        logger.error('No plot done')
 
 
 if __name__ == '__main__':
