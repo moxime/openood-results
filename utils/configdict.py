@@ -52,11 +52,10 @@ class ConfigDict(dict):
     def update(self, /, *a, **kw):
         self._update(-1, *a, **kw)
 
-    # def __getattr__(self, a):
-    #     try:
-    #         return super().__getattribute__(a)
-    #     except AttributeError:
-    #         return self.__getitem__(a)
+    def __getattr__(self, a):
+        if a in self:
+            return self.__getitem__(a)
+        return super().__getattribute__(a)
 
     @classmethod
     def fromargs(cls, args, config=None, **kw):

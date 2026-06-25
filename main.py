@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 def main():
     import sys
     import argparse
-    from .utils import ConfigDict, set_loggers, df_results
+    from .utils import ConfigDict, set_loggers, df_results, plot_scores
     import pandas as pd
 
     argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
@@ -37,7 +37,7 @@ def main():
 
     set_loggers(**config['logger'])
 
-    logger.info('Looking for results in {}'.format(config.get('results_directory')))
+    logger.info('Looking for results in {}'.format(config['load'].get('result_directory')))
 
     for line in str(config).split('\n'):
         logger.debug(line)
@@ -47,13 +47,20 @@ def main():
     df.reorder_index_levels(**config['table'])
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
-    df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
+    unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
+
+    if unknown_args:
+        logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
+
+    try:
+        plot_scores(df, **config['scores'])
+    except ValueError:
+        logger.error('No plot done')
 
     if not len(df):
         logger.error('No df (all results are filtered out')
-        return
-
-    print(df.to_string(**config['table']))
+    else:
+        print(df.to_string(**config['table']))
 
 
 if __name__ == '__main__':

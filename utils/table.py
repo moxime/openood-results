@@ -23,7 +23,11 @@ def ftype(o):
 
 class ResDF(pd.DataFrame):
 
-    drop_index = {}
+    def __init__(self, *a, **kw):
+
+        super().__init__(*a, **kw)
+        self.dropped_index = None
+        self.dropped_index = {}  # pd.DataFrame()
 
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
@@ -66,12 +70,12 @@ class ResDF(pd.DataFrame):
             if k in show:
                 continue
             if (len(values) == 1 and drop_unique) or k in hidden:
-                self.drop_index[k] = values
+                self.dropped_index[k] = values
 
-        if len(self.drop_index) == len(self.index.names):
-            self.drop_index.pop('job')
-        logger.debug('hidden index: {}'.format(', '.join(self.drop_index)))
-        for _ in self.drop_index:
+        if len(self.dropped_index) == len(self.index.names):
+            self.dropped_index.pop('job')
+        logger.debug('hidden index: {}'.format(', '.join(self.dropped_index)))
+        for _ in self.dropped_index:
             self.index = self.index.droplevel(_)
 
     def filter_parse_args(self, parser=None, argv=None, **kw):
@@ -133,7 +137,7 @@ class ResDF(pd.DataFrame):
         df_str += '\n'
         df_str += '=' * df_width + '\n'
 
-        for k, v in self.drop_index.items():
+        for k, v in self.dropped_index.items():
             if len(v) > 1:
                 df_str += '{}: [{}]\n'.format(k, len(v))
             else:
