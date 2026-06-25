@@ -117,7 +117,11 @@ class ResDF(pd.DataFrame):
                 self.sort_index(level='date', inplace=True)
                 self.drop(self.index[:- --args.last], inplace=True)
 
-    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, float_format='{:.1f}'.format, **kw):
+            return _
+        return []
+
+    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, show_dropped=True,
+                  float_format='{:.1f}'.format, **kw):
 
         self.drop_index_level(**kw)
 
@@ -133,11 +137,12 @@ class ResDF(pd.DataFrame):
         df_str += '\n'
         df_str += '=' * df_width + '\n'
 
-        for k, v in self.drop_index.items():
-            if len(v) > 1:
-                df_str += '{}: [{}]\n'.format(k, len(v))
-            else:
-                df_str += '{}: {}\n'.format(k, *v)
+        if show_dropped:
+            for k, v in self.drop_index.items():
+                if len(v) > 1:
+                    df_str += '{}: [{}]\n'.format(k, len(v))
+                else:
+                    df_str += '{}: {}\n'.format(k, *v)
 
         return df_str
 

@@ -37,7 +37,7 @@ args:
     logger.main: [--log, --debug:debug]
     logger.__default__: [--full-log]
     load.result_directory: [-r]
-    no-load.flash: [--reload]
+    load.no_flash: [--reload]
   
   exclude:
     - args

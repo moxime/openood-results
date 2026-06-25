@@ -129,6 +129,7 @@ class ConfigDict(dict):
 
         for k, v in self.items():
             arg_name = '.'.join(prefix + [k])
+            arg_name_neg = '.'.join(prefix + ['no_' + k])
             if arg_name in exclude:
                 continue
 
@@ -146,7 +147,6 @@ class ConfigDict(dict):
 
             if isinstance(v, bool):
                 parser.add_argument(*args, action='store_true', default=v)
-                arg_name_neg = 'no-' + arg_name
                 if arg_name_neg in aliases:
                     arg_alias = aliases[arg_name_neg]
                     if not isinstance(arg_alias, list):

@@ -47,7 +47,10 @@ def main():
     df.reorder_index_levels(**config['table'])
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
-    df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
+    unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
+
+    if unknown_args:
+        logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
 
     if not len(df):
         logger.error('No df (all results are filtered out')
