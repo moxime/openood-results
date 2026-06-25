@@ -278,17 +278,17 @@ if __name__ == '__main__':
     import sys
     from pathlib import Path
 
-print(sys.argv[1])
-df = df_exp(sys.argv[1])
+    print(sys.argv[1])
+    df = df_exp(sys.argv[1])
 
-print(df.index.names)
-print(df.columns)
+    print(df.index.names)
+    print(df.columns)
 
-sys.exit()
-p = Path('/tmp/config.yml')
-c = load_config(p)
+    sys.exit()
+    p = Path('/tmp/config.yml')
+    c = load_config(p)
 
-yaml.dump(c, stream=sys.stdout,
-          default_flow_style=False,
-          sort_keys=False,
-          indent=2)
+    yaml.dump(c, stream=sys.stdout,
+              default_flow_style=False,
+              sort_keys=False,
+              indent=2)
