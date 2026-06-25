@@ -7,6 +7,7 @@ table:
     - workers
     - epoch
     - path
+    - has_scores
 
   show: []
   drop_unique: True
@@ -16,6 +17,14 @@ table:
     beta: [s_ood]
     epochs: [it]
     lr: [wd]
+
+  columns:
+    FPR@95: fpr
+    AUROC: auc
+    ACC: 
+    AUPR_IN:
+    AUPR_OUT:
+    SCORES: 
 
   create_col:
     iter: \chunk * (1 + max(\id_pad, 0) + max(\ood_pad, 0) + \self_pad) * \epochs / \batch_size

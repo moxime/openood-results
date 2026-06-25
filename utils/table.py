@@ -101,8 +101,6 @@ class ResDF(pd.DataFrame):
 
         parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
 
-        self.sort_index()
-
         if argv:
             args, _ = parser.parse_known_args(argv)
 
@@ -116,12 +114,16 @@ class ResDF(pd.DataFrame):
                                                              kept if len(values) < len(values_before) else ''))
 
             if args.last:
-                self.sort_index(level='date')
-                self.drop(self.index[:--args.last], inplace=True)
+                self.sort_index(level='date', inplace=True)
+                self.drop(self.index[:- --args.last], inplace=True)
 
-    def to_string(self, float_format='{:.1f}'.format, **kw):
+    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, float_format='{:.1f}'.format, **kw):
 
         self.drop_index_level(**kw)
+
+        removed_cols = [_ for _ in self.columns if not columns.get(_)]
+        self.drop(removed_cols, axis='columns', inplace=True)
+        self.rename(columns=columns, inplace=True)
 
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
             df_str = super().to_string(float_format=float_format)

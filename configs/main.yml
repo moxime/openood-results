@@ -15,13 +15,6 @@ load:
     dataset: ood
     epoch: epoch
     phase: phase
-  df_columns:
-    FPR@95: fpr
-    AUROC: auc
-    ACC: 
-    AUPR_IN:
-    AUPR_OUT:
-    score_path:
   parse_dates: [date]
 
   config_yml: config.yml

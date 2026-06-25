@@ -46,6 +46,9 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
 
     df['SCORES'] = pd.Series(score_paths(path.parent))
 
+    df['has_scores'] = ~df['SCORES'].isna()
+    df.set_index('has_scores', append=True, inplace=True)
+
     return df
 
 

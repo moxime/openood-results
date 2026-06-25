@@ -48,7 +48,6 @@ def main():
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
     df.filter_parse_args(parser=parser, argv=filter_args, **config['table'])
-    df.sort_index(inplace=True)
 
     if not len(df):
         logger.error('No df (all results are filtered out')
