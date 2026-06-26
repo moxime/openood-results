@@ -48,11 +48,16 @@ args:
     - load.csv_index
 
 scores:
+  compute: False
   q:
-    compute: False
     id: 0.1
-    ood:
-    max_compute: 10
+    ood: 0.9
+  mean:
+    id: False
+    ood: False
+  std:
+    ood: False
+  max_compute: 10
   plot: False
   max_plots: 3
   plots:

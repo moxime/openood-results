@@ -31,25 +31,44 @@ def get_scores(df, **kw):
         yield idx, np.load(results['SCORES'])
 
 
-def compute_quantiles(df, id=None, ood=None, compute=True, max_compute=10, **kw):
+def compute_scores_stats(df, q=dict(), mean=dict(), std=dict(),
+                         compute=True, max_compute=10, **kw):
 
-    if (not id and not ood) or not compute:
-        logger.info('No quantiles calculated')
+    mean = {_: b for _, b in mean.items() if b}
+    std = {_: b for _, b in std.items() if b}
+
+    if (not q and not mean) or not compute:
+        logger.info('No stats calculated')
         return
 
     if len(has_scores(df)) > max_compute:
-        logger.error('table too long ({}>{}), no quantile calculated')
+        logger.error('table too long ({}>{}), no stats calculated')
         return
 
     for idx, scores in get_scores(df):
         conf = scores['conf']
         label = scores['label']
-        if id:
-            q = np.quantile(conf[label >= 0], id)
-            df.loc[idx, ('ID_Q')] = q
-        if ood:
-            q = np.quantile(conf[label < 0], id)
-            df.loc[idx, 'OOD_Q'] = q
+        label_ = {'id': label > 0, 'ood': label <= 0}
+
+        for _ in q:
+            if q.get(_) is None:
+                continue
+            q_ = np.quantile(conf[label_[_]], q[_])
+            df.loc[idx, '{}_Q'.format(_.upper())] = q_
+
+        for _ in mean:
+            if not mean.get(_):
+                continue
+            m = np.mean(conf[label_[_]])
+            logger.debug('Mean calculated for {}'.format(_))
+            df.loc[idx, '{}_M'.format(_.upper())] = m
+
+        for _ in std:
+            if not std.get(_):
+                continue
+            std = np.std(conf[label_[_]])
+            logger.debug('Std calculated for {}'.format(_))
+            df.loc[idx, '{}_STD'.format(_.upper())] = std
 
 
 def plot_scores(df, plot=True, max_plots=3, wait=True, id_q=0.05, **kw):

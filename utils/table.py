@@ -145,8 +145,10 @@ class ResDF(pd.DataFrame):
                 logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
                                                              kept if len(values) < len(values_before) else ''))
             if args.last:
-                self.sort_index(level='date', inplace=True)
+                # self.sort_index(level='date', inplace=True)
+                self.reorder_index_levels(index_order=['date', 'job'])
                 self.drop(self.index[:- --args.last], inplace=True)
+                self.reorder_index_levels(**kw)
 
             return _
         return []
