@@ -8,11 +8,10 @@ logger = logging.getLogger(__name__)
 
 def has_scores(df, **kw):
 
-    assert 'has_scores' in df.index.names
     assert 'SCORES' in df
 
     index = df.index
-    index = index[index.isin([True], level='has_scores')]
+    index = index[df.fullindex.isin([True], level='has_scores')]
 
     if not len(index):
         logger.error('No scores available')
@@ -42,7 +41,7 @@ def compute_scores_stats(df, q=dict(), mean=dict(), std=dict(),
         return
 
     if len(has_scores(df)) > max_compute:
-        logger.error('table too long ({}>{}), no stats calculated')
+        logger.error('table too long ({}>{}), no stats calculated'.format(len(has_scores(df)), max_compute))
         return
 
     for idx, scores in get_scores(df):
@@ -71,39 +70,22 @@ def compute_scores_stats(df, q=dict(), mean=dict(), std=dict(),
             df.loc[idx, '{}_STD'.format(_.upper())] = std
 
 
-def plot_scores(df, plot=True, max_plots=3, wait=True, id_q=0.05, **kw):
+def plot_scores(df, plot=True, plots=[], max_plots=3, wait=True, id_q=0.05, **kw):
 
-    if not plot:
+    if not plot or not plots:
         logger.info('Do not plot')
         return
     else:
         logger.info('Tries to plot')
 
-    df_len = len(df)
-    i = df.index
-    df.drop(i[i.isin([False], level='has_scores')], inplace=True)
-    df.index = df.index.droplevel('has_scores')
-    if not len(df):
-        logger.error('Nothing left to plot')
-        raise ValueError
+    if len(has_scores(df)) > max_plots:
+        logger.error('table too long ({}>{}), no plot'.format(len(has_scores(df)), max_plots))
+        return
 
-    if len(df) < df_len:
-        logger.warning('Some scores are not available')
-
-    if len(df) > max_plots:
-        logger.error('Kept {}>{} plots, try to add filters'.format(len(df), max_plots))
-        raise ValueError
-
-    for idx, results in df.iterrows():
+    for idx, scores in get_scores(df):
         if not isinstance(idx, tuple):
             idx = (idx,)
         idx_str = ' '.join('{}:{}'.format(n, v) for n, v in zip(df.index.names, idx))
-        scores = np.load(results['SCORES'])
-        conf = scores['conf']
-        label = scores['label']
-        q = np.quantile(conf[label >= 0], id_q)
-        print(idx_str, len(scores['conf']), 'q={:.1f}'.format(q))
-        #        print(df.loc[idx])
         fig = plt.figure(idx_str)
         plot_hist(scores, fig.gca())
         fig.show()

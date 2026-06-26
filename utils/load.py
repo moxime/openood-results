@@ -71,7 +71,7 @@ def score_paths(path):
 
     path = Path(path)
 
-    return {(*[], *map(tryint, _.parent.name.split('-')[1:]), _.stem): _.relative_to(path)
+    return {(*[], *map(tryint, _.parent.name.split('-')[1:]), _.stem): _  # .relative_to(path)
             for _ in path.glob('**/*.npz')}
 
 

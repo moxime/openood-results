@@ -43,6 +43,12 @@ class ResDF(pd.DataFrame):
     #         return None
     #     return df
 
+    @property
+    def fullindex(self):
+        if not self.dropped_index:
+            return self.index
+        return self._fullindex
+
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
 
@@ -78,6 +84,9 @@ class ResDF(pd.DataFrame):
         super().sort_index(inplace=True)
 
     def drop_index_level(self, hidden_index=['exp'], drop_unique=True, show=[], inplace=True, **kw):
+        assert not self.dropped_index
+        self._fullindex = None
+        self._fullindex = self.index.copy()
         if not inplace:
             df = self.copy()
             df.drop_index_level(hidden_index=hidden_index, drop_unique=drop_unique, show=show,
@@ -97,8 +106,7 @@ class ResDF(pd.DataFrame):
             self.dropped_index.pop('job')
         logger.debug('hidden index: {}'.format(', '.join(self.dropped_index)))
         for _ in self.dropped_index:
-            if _ in self.index.names:
-                self.index = self.index.droplevel(_)
+            self.index = self.index.droplevel(_)
 
     def restore_index(self, level):
 

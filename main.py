@@ -59,6 +59,7 @@ def main():
         print(df.to_string(**config.table))
 
     try:
+        # config.table.show.append('has_scores')
         df.drop_index_level(**config.table)
         plot_scores(df, **config.scores, wait=True)
     except ValueError:
