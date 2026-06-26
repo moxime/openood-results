@@ -16,11 +16,19 @@ CONFIG_KEYS = {'dataset': {'name': 'set'}, 'postprocessor': {'name': 'method'}}
 logger = logging.getLogger(__name__)
 
 
+class DeleledRes(Exception):
+    pass
+
+
 def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch'},  **kw):
 
     path = Path(path)
 
     if path.is_dir():
+
+        if (path / 'deleted').exists():
+            raise DeleledRes(path)
+
         path = path / ood_csv
 
     if not path.exists():
@@ -200,6 +208,8 @@ def fetch_results(result_directory='./results', root=None, **kw):
     except FileNotFoundError:
         for s in [_ for _ in d.iterdir() if _.is_dir()]:
             yield from fetch_results(result_directory=s, root=root, **kw)
+    except DeleledRes:
+        pass
 
 
 def df_results(result_directory='./results', df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
