@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 def main():
     import sys
     import argparse
-    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_quantiles
+    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
     import pandas as pd
 
     argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
@@ -48,7 +48,7 @@ def main():
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
 
     unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config.table)
-    compute_quantiles(df, **config.scores.q)
+    compute_scores_stats(df, **config.scores)
 
     if unknown_args:
         logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
