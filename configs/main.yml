@@ -59,6 +59,6 @@ scores:
     ood: False
   max_compute: 10
   plot: False
-  max_plots: 3
+  max_plots: 6
   plots:
     - hist

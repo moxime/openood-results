@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 def main():
     import sys
     import argparse
-    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
+    from .utils import ConfigDict, set_loggers, df_results, plot_scores, scores_stats
     import pandas as pd
 
     argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
@@ -48,7 +48,7 @@ def main():
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
 
     unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config.table)
-    compute_scores_stats(df, **config.scores)
+    scores_stats(df, **config.scores)
 
     if unknown_args:
         logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
@@ -56,14 +56,12 @@ def main():
     if not len(df):
         logger.error('No df (all results are filtered out')
     else:
-        print(df.to_string(**config.table))
+        df.print(**config.table)
 
-    try:
-        # config.table.show.append('has_scores')
-        df.drop_index_level(**config.table)
-        plot_scores(df, **config.scores, wait=True)
-    except ValueError:
-        logger.error('No plot done')
+    df.drop_index_levels(**config.table)
+    plot_scores(df, **config.scores, wait=True)
+    # except ValueError:
+    #     logger.error('No plot done')
 
 
 if __name__ == '__main__':

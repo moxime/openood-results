@@ -1,13 +1,14 @@
 table:
-  hidden_index:
+  exp_index:
     - exp
     - job
     - date
-    - oods
     - workers
-    - epoch
     - path
     - has_scores
+  hidden_index:
+    - epoch
+    - oods
 
   show: []
   drop_unique: True
