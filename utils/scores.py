@@ -52,6 +52,9 @@ def scores_stats(df, q=dict(), mean=dict(), std=dict(),
         logger.error('table too long ({}>{}), no stats calculated'.format(len(has_scores(df)), max_compute))
         return
 
+    for _ in q:
+        logger.info('{} quantile for p={}'.format(_, q[_]))
+
     for idx, _, scores in get_scores(df):
         conf = scores['conf']
         label = scores['label']

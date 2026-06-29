@@ -31,6 +31,7 @@ class ResDF(pd.DataFrame):
         self._index_bak = None
         self._dropped_index_bak = None
         self._dropped_index_bak = {}
+        self._fullindex = None
 
     def copy(self):
 
@@ -49,7 +50,8 @@ class ResDF(pd.DataFrame):
 
     def sort_index(self, *a, **kw):
 
-        assert not self._dropped_index, 'restore index before sorting'
+        logger.debug('Sort index')
+        assert self._fullindex is None, 'restore index before sorting'
         return super().sort_index(*a, **kw)
 
     def unstack(self, *a, **kw):
@@ -178,8 +180,8 @@ class ResDF(pd.DataFrame):
                 # self.sort_index(level='date', inplace=True)
                 self.reorder_index_levels(index_order=['date', 'job'])
                 self.drop(self.index[:- --args.last], inplace=True)
-                self.reorder_index_levels(**kw)
 
+            self.reorder_index_levels(**kw)
             return _
         return []
 
@@ -196,14 +198,14 @@ class ResDF(pd.DataFrame):
         df.drop(removed_cols, axis='columns', inplace=True)
         df.rename(columns=columns, inplace=True)
 
+        df._fullindex = None
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-            df_str = df.to_string(float_format=float_format)
+            df_str = df.sort_index().to_string(float_format=float_format)
 
         df_width = max(len(_) for _ in df_str.split('\n'))
 
-        df_str += '\n'
-
         if show_dropped:
+            df_str += '\n'
             df_str += '-' * df_width
             for k, index in df._dropped_index.items():
                 v = set(index)

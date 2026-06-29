@@ -57,7 +57,7 @@ scores:
     ood: False
   std:
     ood: False
-  max_compute: 10
+  max_compute: 200
   plot: False
   max_plots: 6
   plots:
