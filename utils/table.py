@@ -26,27 +26,54 @@ class ResDF(pd.DataFrame):
     def __init__(self, *a, **kw):
 
         super().__init__(*a, **kw)
-        self.dropped_index = None
-        self.dropped_index = {}
+        self._dropped_index = None
+        self._dropped_index = {}
+        self._index_bak = None
+        self._dropped_index_bak = None
+        self._dropped_index_bak = {}
 
     def copy(self):
 
         df = type(self)(super().copy())
-        df.dropped_index = self.dropped_index.copy()
+        df._dropped_index = self._dropped_index.copy()
+        df._index_bak = self._index_bak
+        df._dropped_index_bak = self._dropped_index_bak
         return df
 
     # def drop(self, labels=None, *, inplace=True, **kw):
-    #     if
     #     df = self if inplace else self.copy()
     #     pd.DataFrame.drop(df, *a, **kw, inplace=True)
     #     if inplace:
     #         return None
     #     return df
 
+    def sort_index(self, *a, **kw):
+
+        assert not self._dropped_index, 'restore index before sorting'
+        return super().sort_index(*a, **kw)
+
+    def unstack(self, *a, **kw):
+        d = super().unstack(*a, **kw)
+        return type(self)(d)
+
+    @property
+    def fullindex(self):
+        if not self._dropped_index:
+            return self.index
+        return self._fullindex
+
+    def restore_fullindex(self):
+
+        self._index_bak = self.index
+        self._dropped_index_bak = self._dropped_index
+        self.index = self.fullindex
+        self._dropped_index = {}
+
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
 
         index_names = list(self.index.names)
+        assert not self._dropped_index
 
         try:
             dots = index_order.index('...')
@@ -73,17 +100,27 @@ class ResDF(pd.DataFrame):
                         index_order.append(_)
 
         logger.debug('Index order: {}'.format(', '.join(index_order)))
-        super().reset_index(inplace=True)
-        super().set_index(index_order, inplace=True)
-        super().sort_index(inplace=True)
+        self.reset_index(inplace=True)
+        self.set_index(index_order, inplace=True)
+        self.sort_index(inplace=True)
 
-    def drop_index_level(self, hidden_index=['exp'], drop_unique=True, show=[], inplace=True, **kw):
+    def drop_index_levels(self, exp_index=['job'], hidden_index=[], drop_unique=True, show=[],
+                          redrop=False, inplace=True, **kw):
+        assert not self._dropped_index
+        self._fullindex = None
+        self._fullindex = self.index.copy()
+        if redrop:
+            show = []
+            hidden_index = list(self._dropped_index_bak)
         if not inplace:
             df = self.copy()
-            df.drop_index_level(hidden_index=hidden_index, drop_unique=drop_unique, show=show,
-                                inplace=True, **kw)
+            df.drop_index_levels(exp_index=exp_index,
+                                 hidden_index=hidden_index,
+                                 show=show,
+                                 drop_unique=drop_unique,
+                                 inplace=True, **kw)
             return df
-        hidden = set(self.index.names) & set(hidden_index)
+        hidden = set(self.index.names) & (set(hidden_index) | set(exp_index))
 
         for k in self.index.names:
             index_k = self.index.get_level_values(k)
@@ -91,20 +128,13 @@ class ResDF(pd.DataFrame):
             if k in show:
                 continue
             if (len(values) == 1 and drop_unique) or k in hidden:
-                self.dropped_index[k] = index_k
+                self._dropped_index[k] = index_k
 
-        if len(self.dropped_index) == len(self.index.names):
-            self.dropped_index.pop('job')
-        logger.debug('hidden index: {}'.format(', '.join(self.dropped_index)))
-        for _ in self.dropped_index:
-            if _ in self.index.names:
-                self.index = self.index.droplevel(_)
-
-    def restore_index(self, level):
-
-        idx = self.dropped_index.pop(level)
-        df[level] = idx
-        df.set_index(level, inplace=True, append=True)
+        if len(self._dropped_index) == len(self.index.names):
+            self._dropped_index.pop('job')
+        logger.debug('hidden index: {}'.format(', '.join(self._dropped_index)))
+        for _ in self._dropped_index:
+            self.index = self.index.droplevel(_)
 
     def filter_parse_args(self, parser=None, argv=None, **kw):
 
@@ -153,31 +183,34 @@ class ResDF(pd.DataFrame):
             return _
         return []
 
-    def to_string(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, show_dropped=True,
-                  list_values=None,
-                  float_format='{:.1f}'.format, **kw):
+    def print(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, show_dropped=True,
+              list_values=None,
+              float_format='{:.1f}'.format, **kw):
 
-        df = self.drop_index_level(**kw, inplace=False)
+        if not self._dropped_index:
+            df = self.drop_index_levels(**kw, inplace=False)
+        else:
+            df = self.copy()
 
         removed_cols = [_ for _ in df.columns if not columns.get(_)]
         df.drop(removed_cols, axis='columns', inplace=True)
         df.rename(columns=columns, inplace=True)
 
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-            df_str = pd.DataFrame.to_string(df, float_format=float_format)
+            df_str = df.to_string(float_format=float_format)
 
         df_width = max(len(_) for _ in df_str.split('\n'))
 
         df_str += '\n'
 
         if show_dropped:
-            df_str += '=' * df_width + '\n'
-            for k, index in df.dropped_index.items():
+            df_str += '-' * df_width
+            for k, index in df._dropped_index.items():
                 v = set(index)
                 if len(v) > 1:
-                    df_str += '{}: [{}]\n'.format(k, len(v))
+                    df_str += '\n{:16} [{}]'.format(k, len(v))
                 else:
-                    df_str += '{}: {}\n'.format(k, *v)
+                    df_str += '\n{:16} {}'.format(k, *v)
 
         if list_values:
             try:
@@ -187,7 +220,7 @@ class ResDF(pd.DataFrame):
             except (ValueError, KeyError):
                 logger.error('{} not in index'.format(list_values))
 
-        return df_str
+        print(df_str)
 
 
 if __name__ == '__main__':

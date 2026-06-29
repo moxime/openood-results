@@ -1,5 +1,6 @@
 from .table import ResDF
 import logging
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,11 +9,8 @@ logger = logging.getLogger(__name__)
 
 def has_scores(df, **kw):
 
-    assert 'has_scores' in df.index.names
-    assert 'SCORES' in df
-
-    index = df.index
-    index = index[index.isin([True], level='has_scores')]
+    index = df.fullindex
+    index = df.index[index.isin([True], level='has_scores')]
 
     if not len(index):
         logger.error('No scores available')
@@ -24,15 +22,24 @@ def has_scores(df, **kw):
     return df.loc[index]
 
 
-def get_scores(df, **kw):
+def get_scores(df, unstack=[], **kw):
 
-    df_with_scores = has_scores(df)
+    df_with_scores = has_scores(df).unstack(unstack)
     for idx, results in df_with_scores.iterrows():
-        yield idx, np.load(results['SCORES'])
+        if not isinstance(idx, tuple):
+            idx_str = str(idx)
+        else:
+            idx_str = ' '.join('{}:{}'.format(n, v) for n, v in zip(df.index.names, idx))
+
+        if isinstance(results['SCORES'], (str, Path)):
+            yield idx, idx_str, np.load(results['SCORES'])
+        else:
+            results = dict(results['SCORES'])
+            yield idx, idx_str, {_: np.load(results[_]) for _ in results}
 
 
-def compute_scores_stats(df, q=dict(), mean=dict(), std=dict(),
-                         compute=True, max_compute=10, **kw):
+def scores_stats(df, q=dict(), mean=dict(), std=dict(),
+                 compute=True, max_compute=10, **kw):
 
     mean = {_: b for _, b in mean.items() if b}
     std = {_: b for _, b in std.items() if b}
@@ -42,10 +49,10 @@ def compute_scores_stats(df, q=dict(), mean=dict(), std=dict(),
         return
 
     if len(has_scores(df)) > max_compute:
-        logger.error('table too long ({}>{}), no stats calculated')
+        logger.error('table too long ({}>{}), no stats calculated'.format(len(has_scores(df)), max_compute))
         return
 
-    for idx, scores in get_scores(df):
+    for idx, _, scores in get_scores(df):
         conf = scores['conf']
         label = scores['label']
         label_ = {'id': label > 0, 'ood': label <= 0}
@@ -71,54 +78,71 @@ def compute_scores_stats(df, q=dict(), mean=dict(), std=dict(),
             df.loc[idx, '{}_STD'.format(_.upper())] = std
 
 
-def plot_scores(df, plot=True, max_plots=3, wait=True, id_q=0.05, **kw):
+def plot_scores(df, plot=True, plots=[], wait=True, **kw):
 
-    if not plot:
+    if not plot or not plots:
         logger.info('Do not plot')
         return
     else:
         logger.info('Tries to plot')
 
-    df_len = len(df)
-    i = df.index
-    df.drop(i[i.isin([False], level='has_scores')], inplace=True)
-    df.index = df.index.droplevel('has_scores')
-    if not len(df):
-        logger.error('Nothing left to plot')
-        raise ValueError
+    if 'phase' not in df.index.names and 'phase' in plots:
+        logger.error('Will not plot phase (hidden or unique)')
+        plots.remove('phase')
 
-    if len(df) < df_len:
-        logger.warning('Some scores are not available')
+    has_plots = False
+    if 'hist' in plots:
+        has_plots |= bool(plot_hist(df, **kw))
 
-    if len(df) > max_plots:
-        logger.error('Kept {}>{} plots, try to add filters'.format(len(df), max_plots))
-        raise ValueError
+    if 'phase' in plots:
+        has_plots |= bool(plot_phase(df, **kw))
 
-    for idx, results in df.iterrows():
-        if not isinstance(idx, tuple):
-            idx = (idx,)
-        idx_str = ' '.join('{}:{}'.format(n, v) for n, v in zip(df.index.names, idx))
-        scores = np.load(results['SCORES'])
+    if wait and has_plots:
+        i = input()
+
+
+def plot_hist(df, max_plots=3, **kw):
+
+    if len(has_scores(df)) > max_plots:
+        logger.error('table too long ({}>{}), no plot'.format(len(has_scores(df)), max_plots))
+        return
+
+    for idx, idx_str, scores in get_scores(df):
+        fig = plt.figure(idx_str)
+        ax = fig.gca()
         conf = scores['conf']
         label = scores['label']
-        q = np.quantile(conf[label >= 0], id_q)
-        print(idx_str, len(scores['conf']), 'q={:.1f}'.format(q))
-        #        print(df.loc[idx])
-        fig = plt.figure(idx_str)
-        plot_hist(scores, fig.gca())
+
+        ax.hist(conf[label >= 0], bins=100)
+        ax.hist(conf[label < 0], bins=100)
         fig.show()
 
-    if wait:
-        input()
+    return True
 
 
-def plot_hist(results, ax=None):
+def plot_phase(df, max_plots=3, **kw):
 
-    if ax is None:
-        ax = plt.gca()
+    df_scores = has_scores(df).unstack('phase')
+    if len(df_scores) > max_plots:
+        logger.error('table too long ({}>{}), no plot'.format(len(has_scores(df)), max_plots))
+        return
 
-    conf = results['conf']
-    label = results['label']
+    for idx, idx_str, scores in get_scores(df, unstack='phase'):
+        if any(_ is None for _ in scores.values()):
+            continue
+        fig = plt.figure(idx_str)
+        ax = fig.gca()
 
-    ax.hist(conf[label >= 0], bins=100)
-    ax.hist(conf[label < 0], bins=100)
+        conf_mid = scores['1mid']['conf']
+        conf_end = scores['2end']['conf']
+        label = scores['1mid']['label']
+        ax.scatter(conf_mid, conf_end, s=1, c=label < 0)
+        ax.plot([conf_mid.min(), conf_mid.max()], [conf_mid.min(), conf_mid.max()], '--')
+        fig.show()
+
+    return True
+
+
+if __name__ == '__main__':
+
+    pass
