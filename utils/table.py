@@ -33,9 +33,9 @@ class ResDF(pd.DataFrame):
         self._dropped_index_bak = {}
         self._fullindex = None
 
-    def copy(self):
+    def copy(self, **kw):
 
-        df = type(self)(super().copy())
+        df = type(self)(super().copy(**kw))
         df._dropped_index = self._dropped_index.copy()
         df._index_bak = self._index_bak
         df._dropped_index_bak = self._dropped_index_bak
