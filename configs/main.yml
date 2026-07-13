@@ -57,8 +57,14 @@ scores:
     ood: False
   std:
     ood: False
+    id: False
+  skew:
+    ood: False
+    id: False
   max_compute: 200
-  plot: False
+  plot: True
   max_plots: 6
-  plots:
-    - hist
+  plots: []
+  hist_params:
+    bins: 100
+    histtype: step

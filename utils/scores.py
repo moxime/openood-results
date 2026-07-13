@@ -24,7 +24,10 @@ def has_scores(df, **kw):
 
 def get_scores(df, unstack=[], **kw):
 
-    df_with_scores = has_scores(df).unstack(unstack)
+    df_with_scores = has_scores(df)
+
+    if unstack:
+        df_with_scores = df_with_scores.unstack(unstack)
     for idx, results in df_with_scores.iterrows():
         if not isinstance(idx, tuple):
             idx_str = str(idx)
@@ -39,12 +42,14 @@ def get_scores(df, unstack=[], **kw):
 
 
 def scores_stats(df, q=dict(), mean=dict(), std=dict(),
+                 skew=dict(),
                  compute=True, max_compute=10, **kw):
 
     mean = {_: b for _, b in mean.items() if b}
     std = {_: b for _, b in std.items() if b}
+    skew = {_: b for _, b in skew.items() if b}
 
-    if (not q and not mean) or not compute:
+    if not (q or mean or skew) or not compute:
         logger.info('No stats calculated')
         return
 
@@ -76,9 +81,18 @@ def scores_stats(df, q=dict(), mean=dict(), std=dict(),
         for _ in std:
             if not std.get(_):
                 continue
-            std = np.std(conf[label_[_]])
+            s = np.std(conf[label_[_]])
             logger.debug('Std calculated for {}'.format(_))
-            df.loc[idx, '{}_STD'.format(_.upper())] = std
+            df.loc[idx, '{}_STD'.format(_.upper())] = s
+
+        for _ in skew:
+            if not skew.get(_):
+                continue
+            c = conf[label_[_]]
+            m = np.mean(c)
+            s = np.mean((c - m)**3) / np.std(c)**3
+            logger.debug('Skew calculated for {}'.format(_))
+            df.loc[idx, '{}_SKEW'.format(_.upper())] = s
 
 
 def plot_scores(df, plot=True, plots=[], wait=True, **kw):
@@ -106,6 +120,8 @@ def plot_scores(df, plot=True, plots=[], wait=True, **kw):
 
 def plot_hist(df, max_plots=3, **kw):
 
+    hist_kw = kw.get('hist_params', {})
+
     if len(has_scores(df)) > max_plots:
         logger.error('table too long ({}>{}), no plot'.format(len(has_scores(df)), max_plots))
         return
@@ -116,8 +132,8 @@ def plot_hist(df, max_plots=3, **kw):
         conf = scores['conf']
         label = scores['label']
 
-        ax.hist(conf[label >= 0], bins=100)
-        ax.hist(conf[label < 0], bins=100)
+        ax.hist(conf[label >= 0], **hist_kw)
+        ax.hist(conf[label < 0], **hist_kw)
         fig.show()
 
     return True
