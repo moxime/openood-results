@@ -203,9 +203,23 @@ class ResDF(pd.DataFrame):
             except (ValueError, KeyError):
                 logger.error('{} not in index'.format(list_values))
 
-    def to_latex(self, *a, float_format='{:.1f}', **kw):
+    def to_latex(self, filename=None,
+                 columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
+                 float_format='{:.3g}', **kw):
 
-        super().to_latex(*a, float_format=float_format)
+        if not filename:
+            logger.info('No tex file produced')
+            return
+        logger.info('Tex file: {}'.format(filename))
+
+        if isinstance(float_format, str):
+            float_format = float_format.format
+
+        columns, header = zip(*(t for t in columns.items() if t[1]))
+        super().to_latex(filename, float_format=float_format,
+                         index_names=False,
+                         columns=columns, header=header,
+                         escape=True)
 
 
 if __name__ == '__main__':

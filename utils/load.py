@@ -212,8 +212,7 @@ def fetch_results(result_directory='./results', root=None, **kw):
         pass
 
 
-def df_results(result_directory='./results', df_columns={'FPR@95': 'fpr', 'AUROC': 'auc'},
-               parse_dates=['date'], flash=False, **kw):
+def df_results(result_directory='./results', parse_dates=['date'], flash=False, **kw):
     """
 
     """
@@ -249,6 +248,9 @@ def df_results(result_directory='./results', df_columns={'FPR@95': 'fpr', 'AUROC
     t0 -= time.time()
 
     logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
+
+    df.result_directory = None
+    df.result_directory = result_directory
 
     return df
 

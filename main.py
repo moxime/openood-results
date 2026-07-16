@@ -56,6 +56,7 @@ def main():
         logger.error('No df (all results are filtered out')
     else:
         df.print(**config.table)
+        df.drop_index_levels(**config.table).to_latex(**config.table.tex)
 
     plot_scores(df.drop_index_levels(**config.table), **config.scores, wait=True)
 

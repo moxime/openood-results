@@ -39,4 +39,20 @@ table:
     
   create_col:
     iter: \chunk * (1 + max(\id_pad, 0) + max(\ood_pad, 0) + \self_pad) * \epochs / \batch_size
-  
+
+  tex:
+    filename: /tmp/table.tex
+    columns:
+      FPR@95: 
+      AUROC: AUC
+      ACC: 
+      AUPR_IN:
+      AUPR_OUT:
+      ID_Q: 
+      OOD_Q:
+      ID_M: 
+      ID_STD: 
+      ID_SKEW: id skew
+      OOD_M: 
+      OOD_STD: 
+      OOD_SKEW: 
