@@ -6,7 +6,7 @@ table:
     - workers
     - path
     - has_scores
-  hidden_index:
+  hide:
     - epoch
     - oods
 

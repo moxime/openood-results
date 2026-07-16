@@ -2,6 +2,7 @@ import logging
 import argparse
 import numpy as np
 import pandas as pd
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ class ResDF(pd.DataFrame):
         self.set_index(index_order, inplace=True)
         self.sort_index(inplace=True)
 
-    def drop_index_levels(self, exp_index=['job'], hidden_index=[], drop_unique=True, show=[],
+    def drop_index_levels(self, exp_index=['job'], hide=[], drop_unique=True, show=[],
                           redrop=False, inplace=True, **kw):
         assert not self._dropped_index
         self._fullindex = None
@@ -117,12 +118,12 @@ class ResDF(pd.DataFrame):
         if not inplace:
             df = self.copy()
             df.drop_index_levels(exp_index=exp_index,
-                                 hidden_index=hidden_index,
+                                 hide=hide,
                                  show=show,
                                  drop_unique=drop_unique,
                                  inplace=True, **kw)
             return df
-        hidden = set(self.index.names) & (set(hidden_index) | set(exp_index))
+        hidden = set(self.index.names) & (set(hide) | set(exp_index))
 
         for k in self.index.names:
             index_k = self.index.get_level_values(k)
@@ -204,8 +205,11 @@ class ResDF(pd.DataFrame):
 
         df_width = max(len(_) for _ in df_str.split('\n'))
 
+        print(df_str)
+
+        df_str = ''
         if show_dropped:
-            df_str += '\n'
+            df_str += ''
             df_str += '-' * df_width
             for k, index in df._dropped_index.items():
                 v = set(index)
@@ -214,6 +218,8 @@ class ResDF(pd.DataFrame):
                 else:
                     df_str += '\n{:16} {}'.format(k, *v)
 
+            print(df_str, file=sys.stdout)
+
         if list_values:
             try:
                 values = set(self.index.get_level_values(list_values))
@@ -221,8 +227,6 @@ class ResDF(pd.DataFrame):
                                             ' -- '.join(map(str, values))))
             except (ValueError, KeyError):
                 logger.error('{} not in index'.format(list_values))
-
-        print(df_str)
 
 
 if __name__ == '__main__':
