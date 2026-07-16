@@ -60,8 +60,6 @@ def main():
 
     df.drop_index_levels(**config.table)
     plot_scores(df, **config.scores, wait=True)
-    # except ValueError:
-    #     logger.error('No plot done')
 
 
 if __name__ == '__main__':

@@ -200,8 +200,9 @@ class ResDF(pd.DataFrame):
         df.rename(columns=columns, inplace=True)
 
         df._fullindex = None
+        df.sort_index(inplace=True)
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-            df_str = df.sort_index().to_string(float_format=float_format)
+            df_str = df.to_string(float_format=float_format)
 
         df_width = max(len(_) for _ in df_str.split('\n'))
 
@@ -227,6 +228,10 @@ class ResDF(pd.DataFrame):
                                             ' -- '.join(map(str, values))))
             except (ValueError, KeyError):
                 logger.error('{} not in index'.format(list_values))
+
+    def to_latex(self, *a, float_format='{:.1f}', **kw):
+
+        super().to_latex(*a, float_format=float_format)
 
 
 if __name__ == '__main__':

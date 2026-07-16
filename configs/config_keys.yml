@@ -29,7 +29,7 @@ load:
     postprocessor:
       name: method
       postprocessor_args:
-        mu_ood: mu_
+        mu_ood: mu_alt
         max_iterations_per_phase: it_max
         iterations_per_phase: it
         gasless: gasless
