@@ -1,4 +1,3 @@
-from .configdict import ConfigDict
 import logging
 
 DEFAULT_LEVEL = 'warning'
@@ -55,5 +54,5 @@ def set_loggers(logger_root=__package__, **levels):
 
 
 if __name__ == '__main__':
-    print('******************')
+    from .configdict import ConfigDict
     set_loggers(**ConfigDict())

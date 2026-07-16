@@ -57,17 +57,6 @@ class ConfigDict(dict):
             return self.__getitem__(a)
         return super().__getattribute__(a)
 
-    @classmethod
-    def fromargs(cls, args, config=None, **kw):
-        if args is not None:
-            return cls.fromargs(None, config, **kw)
-        if config is None:
-            config = cls(_registering_default=False)
-            return cls.fromargs(None, config, **kw)
-
-        for k, v in kw.items:
-            pass
-
     def _update_with_dotkeys(self, **kw):
 
         for k, v in kw.items():
@@ -107,13 +96,6 @@ class ConfigDict(dict):
                     self._update(depth-1, **{k: yaml.load(f, Loader=yaml.SafeLoader)})
                 continue
             super().update({k: v})
-
-    def subdict(self, k, prefix=None):
-
-        if prefix is None:
-            prefix = '{}_'.format(k)
-        return type(self)(_registering_default=False,
-                          **{'{}{}'.format(prefix, _): self[k][_] for _ in self[k]})
 
     def create_parser(self, parser=None, prefix=[], exclude=None, aliases=None):
 
