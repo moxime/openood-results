@@ -29,30 +29,19 @@ class ResDF(pd.DataFrame):
         super().__init__(*a, **kw)
         self._dropped_index = None
         self._dropped_index = {}
-        self._index_bak = None
-        self._dropped_index_bak = None
-        self._dropped_index_bak = {}
         self._fullindex = None
 
     def copy(self, **kw):
 
         df = type(self)(super().copy(**kw))
         df._dropped_index = self._dropped_index.copy()
-        df._index_bak = self._index_bak
-        df._dropped_index_bak = self._dropped_index_bak
         return df
-
-    # def drop(self, labels=None, *, inplace=True, **kw):
-    #     df = self if inplace else self.copy()
-    #     pd.DataFrame.drop(df, *a, **kw, inplace=True)
-    #     if inplace:
-    #         return None
-    #     return df
 
     def sort_index(self, *a, **kw):
 
         logger.debug('Sort index')
-        assert self._fullindex is None, 'restore index before sorting'
+        # once sorted, full index is no longer reliable
+        self._fullindex = None
         return super().sort_index(*a, **kw)
 
     def unstack(self, *a, **kw):
@@ -64,13 +53,6 @@ class ResDF(pd.DataFrame):
         if not self._dropped_index:
             return self.index
         return self._fullindex
-
-    def restore_fullindex(self):
-
-        self._index_bak = self.index
-        self._dropped_index_bak = self._dropped_index
-        self.index = self.fullindex
-        self._dropped_index = {}
 
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
@@ -107,37 +89,33 @@ class ResDF(pd.DataFrame):
         self.set_index(index_order, inplace=True)
         self.sort_index(inplace=True)
 
-    def drop_index_levels(self, exp_index=['job'], hide=[], drop_unique=True, show=[],
-                          redrop=False, inplace=True, **kw):
-        assert not self._dropped_index
-        self._fullindex = None
-        self._fullindex = self.index.copy()
-        if redrop:
-            show = []
-            hidden_index = list(self._dropped_index_bak)
-        if not inplace:
-            df = self.copy()
-            df.drop_index_levels(exp_index=exp_index,
-                                 hide=hide,
-                                 show=show,
-                                 drop_unique=drop_unique,
-                                 inplace=True, **kw)
-            return df
-        hidden = set(self.index.names) & (set(hide) | set(exp_index))
+    def drop_index_levels(self, exp_index=['job'], hide=[], drop_unique=True, show=[], **kw):
 
-        for k in self.index.names:
-            index_k = self.index.get_level_values(k)
+        df = self.copy()
+        if self._dropped_index:
+            logger.warning('index already dropped returing df.copy()')
+            return df
+        assert not self._dropped_index
+
+        df._fullindex = self.index.copy()
+
+        hidden = set(df.index.names) & (set(hide) | set(exp_index))
+
+        for k in df.index.names:
+            index_k = df.index.get_level_values(k)
             values = set(index_k)
             if k in show:
                 continue
             if (len(values) == 1 and drop_unique) or k in hidden:
-                self._dropped_index[k] = index_k
+                df._dropped_index[k] = index_k
 
-        if len(self._dropped_index) == len(self.index.names):
-            self._dropped_index.pop('job')
-        logger.debug('hidden index: {}'.format(', '.join(self._dropped_index)))
-        for _ in self._dropped_index:
-            self.index = self.index.droplevel(_)
+        if len(df._dropped_index) == len(df.index.names):
+            df._dropped_index.pop('job')
+        logger.debug('hidden index: {}'.format(', '.join(df._dropped_index)))
+        for _ in df._dropped_index:
+            df.index = df.index.droplevel(_)
+
+        return df
 
     def filter_parse_args(self, parser=None, argv=None, **kw):
 
@@ -167,7 +145,7 @@ class ResDF(pd.DataFrame):
         parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
 
         if argv:
-            args, _ = parser.parse_known_args(argv)
+            args, unknown_args = parser.parse_known_args(argv)
 
             for k in self.index.names:
                 df_len = len(self)
@@ -178,28 +156,24 @@ class ResDF(pd.DataFrame):
                 logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
                                                              kept if len(values) < len(values_before) else ''))
             if args.last:
-                # self.sort_index(level='date', inplace=True)
                 self.reorder_index_levels(index_order=['date', 'job'])
                 self.drop(self.index[:- --args.last], inplace=True)
 
             self.reorder_index_levels(**kw)
-            return _
+            return unknown_args
+        self.reorder_index_levels(**kw)
         return []
 
     def print(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, show_dropped=True,
               list_values=None,
               float_format='{:.1f}'.format, **kw):
 
-        if not self._dropped_index:
-            df = self.drop_index_levels(**kw, inplace=False)
-        else:
-            df = self.copy()
+        df = self.drop_index_levels(**kw, inplace=False)
 
         removed_cols = [_ for _ in df.columns if not columns.get(_)]
         df.drop(removed_cols, axis='columns', inplace=True)
         df.rename(columns=columns, inplace=True)
 
-        df._fullindex = None
         df.sort_index(inplace=True)
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
             df_str = df.to_string(float_format=float_format)

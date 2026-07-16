@@ -43,7 +43,6 @@ def main():
         logger.debug(line)
 
     df = df_results(**config.load)
-    df.reorder_index_levels(**config.table)
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
 
@@ -58,8 +57,7 @@ def main():
     else:
         df.print(**config.table)
 
-    df.drop_index_levels(**config.table)
-    plot_scores(df, **config.scores, wait=True)
+    plot_scores(df.drop_index_levels(**config.table), **config.scores, wait=True)
 
 
 if __name__ == '__main__':
