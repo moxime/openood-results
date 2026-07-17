@@ -37,11 +37,8 @@ table:
     OOD_STD: ood_std
     OOD_SKEW: ood_skew
     
-  create_col:
-    iter: \chunk * (1 + max(\id_pad, 0) + max(\ood_pad, 0) + \self_pad) * \epochs / \batch_size
-
   tex:
-    filename: /tmp/table.tex
+    filename: '' #/tmp/table.tex
     columns:
       FPR@95: 
       AUROC: AUC
@@ -56,3 +53,14 @@ table:
       OOD_M: 
       OOD_STD: 
       OOD_SKEW: 
+    index:
+      chunk:
+        name: $N$
+      grad:
+        name: $\nabla$
+        values:
+          penultimate: pen
+        ood_period:
+          name: $T_{\text{OOD}}$
+        mu_alt:
+          name: $\mu_{\text{alt}}$

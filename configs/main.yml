@@ -27,7 +27,7 @@ load:
     epochs: 0
     it: 0
     margin: 0.
-    mu_: none
+    mu_ood: null
     phase: none
     gasless: False
     pad_ext: none
