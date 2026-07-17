@@ -39,20 +39,24 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
 
     df = pd.read_csv(path)
 
-    if 'epoch' in df:
-        epochs = max(df['epoch'])
-        df['phase'] = df['epoch'].map(lambda e: {0: '0start', epochs // 4: '1mid', epochs: '2end'}.get(e))
-
     index_labels = df.columns[df.columns.isin(list(csv_index))]
     df.set_index(list(index_labels), inplace=True, append=False)
+
+    scores_dict = score_paths(path.parent)
+    for i, s in scores_dict.items():
+        df.loc[i, 'SCORES'] = s
+
+    if 'epoch' in df.index.names:
+        epochs = max(df['epoch'])
+        df['phase'] = df['epoch'].map(lambda e: {0: '0start', epochs // 4: '1mid', epochs: '2end'}.get(e))
+        df.set_index('phase', append=True, inplace=True)
+    print(df.index)
 
     if not isinstance(df.index, pd.MultiIndex):
         df.index = pd.MultiIndex.from_arrays([df.index], names=[df.index.name])
     df.index.rename(csv_index, inplace=True)
 
     df.drop(df.index[df.isnull().all(axis=1)], inplace=True)
-
-    df['SCORES'] = pd.Series(score_paths(path.parent))
 
     df['has_scores'] = ~df['SCORES'].isna()
     df.set_index('has_scores', append=True, inplace=True)
@@ -277,7 +281,7 @@ def concatenate_df(*dfs, index_fill_values={}, **kw):
 
         for c in sorted_index:
             if c not in index_frame.columns:
-                index_frame[c] = index_fill_values.get(c, 'none')
+                index_frame[c] = index_fill_values.get(c, pd.NA)
 
         df.index = pd.MultiIndex.from_frame(index_frame[sorted_index])
 
