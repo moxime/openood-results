@@ -52,11 +52,11 @@ def main():
     if unknown_args:
         logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
 
-    if not len(df):
-        logger.error('No df (all results are filtered out')
-    else:
+    try:
         df.print(**config.table)
         df.drop_index_levels(**config.table).to_latex(**config.table.tex)
+    except ValueError:
+        pass
 
     plot_scores(df.drop_index_levels(**config.table), **config.scores, wait=True)
 

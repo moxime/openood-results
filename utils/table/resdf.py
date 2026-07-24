@@ -6,19 +6,45 @@ import sys
 from .logger import logger
 
 
-def ftype(o):
+def ftype(t):
 
     def _type(s):
+
+        if s.lower() == 'nan':
+            return np.nan
 
         if s.lower() in ('null', 'none'):
             return None
 
-        if isinstance(o, bool):
+        if t is bool:
             return s.lower() in ('true', 'yes')
 
-        return type(o)(s)
+        return t(s)
 
     return _type
+
+
+def set_with_nan(iterable, return_type=False):
+
+    s = set(iterable)
+    has_nan = False
+    dtype = float
+
+    for _ in list(s):
+
+        if not isinstance(_, float):
+            dtype = type(_)
+            continue
+        if np.isnan(_):
+            s.remove(_)
+            has_nan = True
+
+    if has_nan:
+        s.add(np.nan)
+
+    if not return_type:
+        return s
+    return s, dtype
 
 
 class ResDF(pd.DataFrame):
@@ -102,7 +128,7 @@ class ResDF(pd.DataFrame):
 
         for k in df.index.names:
             index_k = df.index.get_level_values(k)
-            values = set(index_k)
+            values = set_with_nan(index_k)
             if k in show:
                 continue
             if (len(values) == 1 and drop_unique) or k in hidden:
@@ -122,24 +148,23 @@ class ResDF(pd.DataFrame):
             parser = argparse.ArgumentParser()
 
         for name in self.index.names:
-            values = list(set(self.index.get_level_values(name)))
-            while False:
-                try:
-                    values.remove(np.nan)
-                except ValueError:
-                    break
-
+            values, dtype = set_with_nan(self.index.get_level_values(name), return_type=True)
             values_ = ','.join(map(str, values))
             if len(values_) > 50:
                 values_ = values_[:47]+'...'
 
             logger.debug('Adding parser argument --{} of type {} '
-                         '({} default values: {})'.format(name, type(values[0]).__name__,
+                         '({} default values: {})'.format(name, dtype.__name__,
                                                           len(values), values_))
 
             parser.add_argument('--{}'.format(name), nargs='*',
                                 dest='filter.{}'.format(name),
-                                default=values, type=ftype(values[0]))
+                                default=values, type=ftype(dtype))
+
+            parser.add_argument('--{}-'.format(name), nargs='*',
+                                dest='filter.{}.rm'.format(name),
+                                default=[],
+                                type=ftype(dtype))
 
         parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
 
@@ -149,8 +174,10 @@ class ResDF(pd.DataFrame):
             for k in self.index.names:
                 df_len = len(self)
                 kept = vars(args)['filter.{}'.format(k)]
+                removed = vars(args)['filter.{}.rm'.format(k)]
                 values_before = set(self.index.get_level_values(k))
                 self.drop(self.index[~self.index.isin(kept, level=k)], inplace=True)
+                self.drop(self.index[self.index.isin(removed, level=k)], inplace=True)
                 values = set(self.index.get_level_values(k))
                 logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
                                                              kept if len(values) < len(values_before) else ''))
@@ -165,18 +192,33 @@ class ResDF(pd.DataFrame):
         return []
 
     def print(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, show_dropped=True,
-              list_values=None,
-              float_format='{:.1f}'.format, **kw):
+              list_values=None, max_length=200,
+              na_rep='--',
+              float_format='{:.2f}'.format, **kw):
 
         df = self.drop_index_levels(**kw)
+
+        if len(df) == 0:
+            logger.error('Empty table, results are filtered out')
+            raise ValueError
 
         removed_cols = [_ for _ in df.columns if not columns.get(_)]
         df.drop(removed_cols, axis='columns', inplace=True)
         df.rename(columns=columns, inplace=True)
 
+        df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
+
+        if len(df) > max_length:
+            logger.error('Table too long ({}>{}) '.format(len(self), max_length))
+            raise ValueError
+
+        if len(df) == 0:
+            logger.error('Empty table, no metrics available')
+            raise ValueError
+
         df.sort_index(inplace=True)
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-            df_str = df.to_string(float_format=float_format)
+            df_str = df.to_string(float_format=float_format, na_rep=na_rep)
 
         df_width = max(len(_) for _ in df_str.split('\n'))
 
@@ -187,7 +229,7 @@ class ResDF(pd.DataFrame):
             df_str += ''
             df_str += '-' * df_width
             for k, index in df._dropped_index.items():
-                v = set(index)
+                v = set_with_nan(index)
                 if len(v) > 1:
                     df_str += '\n{:16} [{}]'.format(k, len(v))
                 else:

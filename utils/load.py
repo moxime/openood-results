@@ -47,10 +47,10 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
         df.loc[i, 'SCORES'] = s
 
     if 'epoch' in df.index.names:
-        epochs = max(df['epoch'])
-        df['phase'] = df['epoch'].map(lambda e: {0: '0start', epochs // 4: '1mid', epochs: '2end'}.get(e))
+        epochs_ = df.index.get_level_values('epoch')
+        epochs = max(epochs_)
+        df['phase'] = epochs_.map(lambda e: {0: '0start', epochs // 4: '1mid', epochs: '2end'}.get(e))
         df.set_index('phase', append=True, inplace=True)
-    print(df.index)
 
     if not isinstance(df.index, pd.MultiIndex):
         df.index = pd.MultiIndex.from_arrays([df.index], names=[df.index.name])
