@@ -99,6 +99,14 @@ class ConfigDict(dict):
 
     def create_parser(self, parser=None, prefix=[], exclude=None, aliases=None):
 
+        def generic_type(v):
+
+            for t in (int, float, str):
+                try:
+                    return t(v)
+                except ValueError:
+                    pass
+
         if aliases is None:
             aliases = self['args']['aliases']
 
@@ -140,7 +148,7 @@ class ConfigDict(dict):
                 argtype = type(v[0]) if v else str
                 nargs = '*'
             else:
-                argtype = str if v is None else type(v)
+                argtype = generic_type if v is None else type(v)
                 nargs = None
             parser.add_argument(*args, type=argtype, nargs=nargs, default=v, metavar=k.upper())
 

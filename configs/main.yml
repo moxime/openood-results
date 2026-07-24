@@ -50,21 +50,19 @@ args:
 scores:
   compute: False
   q:
-    id: 0.1
-    ood: 0.9
-  mean:
-    id: False
-    ood: False
-  std:
-    ood: False
-    id: False
-  skew:
-    ood: False
-    id: False
-  max_compute: 200
+    id: 
+    ood: 
+  fisher: False
+  iqr: []
+  mean: []
+  std: []
+  skew: []
+  medcouple: []
+  kurtosis: []
+  max_compute: 20000
   plot: True
-  max_plots: 6
+  max_plots: 16
   plots: []
   hist_params:
-    bins: 100
+    bins: 200
     histtype: step

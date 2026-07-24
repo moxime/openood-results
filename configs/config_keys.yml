@@ -8,6 +8,8 @@ load:
     ood_dataset:
       name: oods
       batch_size: batch_size
+      val:
+        datasets: val
       padding:
         datasets: pad_ext
       mixture:
@@ -21,7 +23,8 @@ load:
       name: pipeline
       chunk_size: chunk
       ood_period: ood_period
-    
+      partial: partial
+      
     evaluator:
       name: evaluator
       ood_period: ood_period

@@ -4,6 +4,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from statsmodels.stats import stattools
+from scipy import stats
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,15 +44,17 @@ def get_scores(df, unstack=[], **kw):
             yield idx, idx_str, {_: np.load(results[_]) for _ in results}
 
 
-def scores_stats(df, q=dict(), mean=dict(), std=dict(),
-                 skew=dict(),
-                 compute=True, max_compute=10, **kw):
+def scores_stats(df, compute=True, q=dict(),
+                 fisher=True, max_compute=10, **kw):
 
-    mean = {_: b for _, b in mean.items() if b}
-    std = {_: b for _, b in std.items() if b}
-    skew = {_: b for _, b in skew.items() if b}
+    funcs = {'mean': np.mean, 'std': np.std,
+             'skew': stats.skew, 'kurtosis': stats.kurtosis,
+             'medcouple': stattools.medcouple,
+             # 'iqr': lambda x: (np.mean(x) - np.quantile(x, 0.1)) / np.std(x)
+             'iqr': lambda x: (np.quantile(x, 0.5) - np.quantile(x, 0.1)) / np.std(x)
+             }
 
-    if not (q or mean or skew) or not compute:
+    if not compute:
         logger.info('No stats calculated')
         return
 
@@ -58,41 +63,49 @@ def scores_stats(df, q=dict(), mean=dict(), std=dict(),
         return
 
     for _ in q:
-        logger.info('{} quantile for p={}'.format(_, q[_]))
+        if q[_]:
+            logger.info('{} quantile for p={}'.format(_, q[_]))
+
+    for stat in funcs:
+        if kw.get(stat):
+            logger.info('Will calculate {} for {}'.format(stat, ','.join(kw[stat])))
 
     for idx, _, scores in get_scores(df):
         conf = scores['conf']
         label = scores['label']
-        label_ = {'id': label > 0, 'ood': label <= 0}
+        label_ = {'id': label >= 0, 'ood': label < 0}
 
-        for _ in q:
-            if q.get(_) is None:
-                continue
-            q_ = np.quantile(conf[label_[_]], q[_])
-            df.loc[idx, '{}_Q'.format(_.upper())] = q_
+        c = {_: conf[label_[_]] for _ in label_}
 
-        for _ in mean:
-            if not mean.get(_):
+        skip = []
+        for _ in label_:
+            if not len(label[label_[_]]):
+                logger.debug('No {} samples, removed from stats'.format(_))
+                skip.append(_)
                 continue
-            m = np.mean(conf[label_[_]])
-            logger.debug('Mean calculated for {}'.format(_))
-            df.loc[idx, '{}_M'.format(_.upper())] = m
 
-        for _ in std:
-            if not std.get(_):
-                continue
-            s = np.std(conf[label_[_]])
-            logger.debug('Std calculated for {}'.format(_))
-            df.loc[idx, '{}_STD'.format(_.upper())] = s
+            if q.get(_):
+                q_ = np.quantile(c[_], q[_])
+                df.loc[idx, '{}_Q'.format(_.upper())] = q_
+                logger.debug('Quantile calculated for {} [{}]'.format(_, len(c[_])))
 
-        for _ in skew:
-            if not skew.get(_):
-                continue
-            c = conf[label_[_]]
-            m = np.mean(c)
-            s = np.mean((c - m)**3) / np.std(c)**3
-            logger.debug('Skew calculated for {}'.format(_))
-            df.loc[idx, '{}_SKEW'.format(_.upper())] = s
+            for stat in funcs:
+                if _ not in kw.get(stat, []):
+                    continue
+                if len(c[_]) > 10000 and stat == 'medcouple':
+                    logger.debug('Will not calculate medcouple for {} [{}] (too long)'.format(_, len(c[_])))
+                    continue
+                logger.debug('{} calculated for {} [{}]'.format(stat, _, len(c[_])))
+                func = funcs[stat]
+                df.loc[idx, '{}_{}'.format(_.upper(), stat.upper())] = func(c[_])
+
+        if fisher and not skip:
+            fisher_id_ood = (c['id'].mean() - c['ood'].mean())**2 / (c['id'].var() + c['ood'].var())
+            df.loc[idx, 'FISHER'] = fisher_id_ood
+
+
+class NoPlotError(ValueError):
+    pass
 
 
 def plot_scores(df, plot=True, plots=[], wait=True, **kw):
@@ -101,7 +114,7 @@ def plot_scores(df, plot=True, plots=[], wait=True, **kw):
         logger.info('Do not plot')
         return
     else:
-        logger.info('Tries to plot')
+        logger.info('Tries to plot {}'.format(','.join(plots)))
 
     if 'phase' not in df.index.names and 'phase' in plots:
         logger.error('Will not plot phase (hidden or unique)')
@@ -109,11 +122,38 @@ def plot_scores(df, plot=True, plots=[], wait=True, **kw):
 
     has_plots = False
     if 'hist' in plots:
-        has_plots |= bool(plot_hist(df, **kw))
+        plots.remove('hist')
+        try:
+            plot_hist(df, **kw)
+            has_plots = True
+        except NoPlotError:
+            pass
 
     if 'phase' in plots:
-        has_plots |= bool(plot_phase(df, **kw))
+        plots.remove('phase')
+        try:
+            plot_phase(df, **kw)
+            has_plots = True
+        except NoPlotError:
+            pass
 
+    if 'boxplots' in plots:
+        plots.remove('boxplots')
+        try:
+            plot_boxplots(df, **kw)
+            has_plots = True
+        except NoPlotError:
+            pass
+
+    for x in plots:
+        try:
+            plot_x(df, x, **kw)
+            has_plots = True
+        except NoPlotError:
+            pass
+
+    if not has_plots:
+        logger.info('No plot')
     if wait and has_plots:
         i = input()
 
@@ -124,7 +164,7 @@ def plot_hist(df, max_plots=3, **kw):
 
     if len(has_scores(df)) > max_plots:
         logger.error('table too long ({}>{}), no plot'.format(len(has_scores(df)), max_plots))
-        return
+        raise NoPlotError
 
     for idx, idx_str, scores in get_scores(df):
         fig = plt.figure(idx_str)
@@ -136,7 +176,49 @@ def plot_hist(df, max_plots=3, **kw):
         ax.hist(conf[label < 0], **hist_kw)
         fig.show()
 
-    return True
+
+def plot_boxplots(df, max_plots=3, **kw):
+    raise NoPlotError
+
+
+def plot_x(df, x=None, max_plots=3, **kw):
+    if not x:
+        raise NoPlotError
+
+    df = has_scores(df).select_dtypes('float')
+
+    if x not in df.index.names:
+        logger.error('{} is not in table index, try to add it with --table.show {}'.format(x, x))
+        raise NoPlotError
+
+    df = df.unstack(x)
+
+    if isinstance(df, pd.Series):
+        df = pd.DataFrame(df).T
+        df.index = pd.MultiIndex.from_tuples([('result',)], names=[''])
+
+    no_fig = True
+    for idx, row in df.iterrows():
+        if not isinstance(idx, tuple):
+            idx = (idx,)
+        idx_str = ' '.join('{}:{}'.format(n, i) for n, i in zip(df.index.names, idx))
+        logger.debug('Plotting metrics for x={} for {}'.format(x, idx_str))
+        fig = plt.figure(idx_str)
+        ax = fig.gca()
+        row_df = pd.DataFrame(row).unstack(x).T
+        no_plot = True
+        for c in row_df:
+            label = c
+            series = row_df[c]
+            if series.isnull().all():
+                continue
+            no_plot = False
+            ax.plot(row_df.index.get_level_values(x), series, label=label)
+        if not no_plot:
+            ax.legend()
+            fig.show()
+        else:
+            raise NoPlotError
 
 
 def plot_phase(df, max_plots=3, **kw):
@@ -144,7 +226,7 @@ def plot_phase(df, max_plots=3, **kw):
     df_scores = has_scores(df).unstack('phase')
     if len(df_scores) > max_plots:
         logger.error('table too long ({}>{}), no plot'.format(len(has_scores(df)), max_plots))
-        return
+        raise NoPlotError
 
     for idx, idx_str, scores in get_scores(df, unstack='phase'):
         if any(_ is None for _ in scores.values()):
@@ -158,8 +240,6 @@ def plot_phase(df, max_plots=3, **kw):
         ax.scatter(conf_mid, conf_end, s=1, c=label < 0)
         ax.plot([conf_mid.min(), conf_mid.max()], [conf_mid.min(), conf_mid.max()], '--')
         fig.show()
-
-    return True
 
 
 if __name__ == '__main__':
