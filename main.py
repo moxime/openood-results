@@ -42,7 +42,11 @@ def main():
     for line in str(config).split('\n'):
         logger.debug(line)
 
-    df = df_results(**config.load)
+    try:
+        df = df_results(**config.load)
+    except ValueError:
+        logger.error('No results to be loaded in {}'.format(config.load.result_directory))
+        return
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
 
