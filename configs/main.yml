@@ -35,8 +35,8 @@ load:
 
 args:
   aliases:
-    logger.main: [--log, --debug:debug]
-    logger.__default__: [--full-log]
+    logger.__main__: [--logm, --debug:debug]
+    logger.__default__: [--log]
     load.result_directory: [-r]
     load.no_flash: [--reload]
   
@@ -63,6 +63,7 @@ scores:
   plot: True
   max_plots: 16
   plots: []
+  columns: []
   hist_params:
     bins: 200
     histtype: step

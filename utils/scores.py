@@ -181,7 +181,8 @@ def plot_boxplots(df, max_plots=3, **kw):
     raise NoPlotError
 
 
-def plot_x(df, x=None, max_plots=3, **kw):
+def plot_x(df, x=None, max_plots=3, columns=[], **kw):
+
     if not x:
         raise NoPlotError
 
@@ -198,6 +199,7 @@ def plot_x(df, x=None, max_plots=3, **kw):
         df.index = pd.MultiIndex.from_tuples([('result',)], names=[''])
 
     no_fig = True
+
     for idx, row in df.iterrows():
         if not isinstance(idx, tuple):
             idx = (idx,)
@@ -208,6 +210,8 @@ def plot_x(df, x=None, max_plots=3, **kw):
         row_df = pd.DataFrame(row).unstack(x).T
         no_plot = True
         for c in row_df:
+            if columns and c not in columns:
+                continue
             label = c
             series = row_df[c]
             if series.isnull().all():

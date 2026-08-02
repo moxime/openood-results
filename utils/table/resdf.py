@@ -216,6 +216,15 @@ class ResDF(pd.DataFrame):
             logger.error('Empty table, no metrics available')
             raise ValueError
 
+        if list_values:
+            try:
+                values = set(self.index.get_level_values(list_values))
+                for _ in values:
+                    print(_)
+                return
+            except (ValueError, KeyError):
+                logger.error('{} not in index'.format(list_values))
+
         df.sort_index(inplace=True)
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
             df_str = df.to_string(float_format=float_format, na_rep=na_rep)
@@ -236,14 +245,6 @@ class ResDF(pd.DataFrame):
                     df_str += '\n{:16} {}'.format(k, *v)
 
             print(df_str, file=sys.stdout)
-
-        if list_values:
-            try:
-                values = set(self.index.get_level_values(list_values))
-                logger.info('{}: {}'.format(list_values,
-                                            ' -- '.join(map(str, values))))
-            except (ValueError, KeyError):
-                logger.error('{} not in index'.format(list_values))
 
     def to_latex(self, filename=None,
                  columns={'FPR@95': 'fpr', 'AUROC': 'auc'},

@@ -23,6 +23,7 @@ load:
       name: pipeline
       chunk_size: chunk
       ood_period: ood_period
+      ood_ratio: ood_ratio
       partial: partial
       
     evaluator:
