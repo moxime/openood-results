@@ -22,15 +22,11 @@ def main():
     from .utils import ConfigDict, set_loggers, df_results, plot_scores, scores_stats
     import pandas as pd
 
-    argv = '--results_dir ./results/lab-ia filter --epoch 200 --set cifar100'
-
-    argv = None if sys.argv[0] else argv.split()
-
     config = ConfigDict()
 
     parser = config.create_parser()
 
-    args, filter_args = parser.parse_known_args(argv)
+    args, filter_args = parser.parse_known_args()
 
     config.update(args)
     config.setup()

@@ -147,8 +147,11 @@ def plot_scores(df, plot=True, plots=[], wait=True, **kw):
 
     for x_y in plots:
         x_y = x_y.split(':')
+        if not len(x_y) == 2:
+            logger.error('Can not plot {}'.format(':'.join(x_y)))
+            continue
         try:
-            plot_x(df, x_y[0], columns=x_y[1:], **kw)
+            plot_x(df, x_y[0], column=x_y[1:], **kw)
             has_plots = True
         except NoPlotError:
             pass
@@ -182,7 +185,7 @@ def plot_boxplots(df, max_plots=3, **kw):
     raise NoPlotError
 
 
-def plot_x(df, x=None, max_plots=3, columns=[], **kw):
+def plot_x(df, x=None, max_plots=3, column=[], **kw):
 
     if not x:
         raise NoPlotError
@@ -199,8 +202,6 @@ def plot_x(df, x=None, max_plots=3, columns=[], **kw):
         df = pd.DataFrame(df).T
         df.index = pd.MultiIndex.from_tuples([('result',)], names=[''])
 
-    no_fig = True
-
     for idx, row in df.iterrows():
         if not isinstance(idx, tuple):
             idx = (idx,)
@@ -211,7 +212,7 @@ def plot_x(df, x=None, max_plots=3, columns=[], **kw):
         row_df = pd.DataFrame(row).unstack(x).T
         no_plot = True
         for c in row_df:
-            if columns and c not in columns:
+            if column and c not in column:
                 continue
             label = c
             series = row_df[c]

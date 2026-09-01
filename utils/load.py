@@ -27,7 +27,7 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
 
     if path.is_dir():
 
-        if (path / 'deleted').exists():
+        if (path / 'deleted').exists() and not ignore_deleted:
             raise DeleledRes(path)
 
         path = path / ood_csv
