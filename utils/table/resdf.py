@@ -225,6 +225,9 @@ class ResDF(pd.DataFrame):
             except (ValueError, KeyError):
                 logger.error('{} not in index'.format(list_values))
 
+        if isinstance(float_format, str):
+            float_format = float_format.format
+
         df.sort_index(inplace=True)
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
             df_str = df.to_string(float_format=float_format, na_rep=na_rep)

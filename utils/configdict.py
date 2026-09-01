@@ -145,12 +145,16 @@ class ConfigDict(dict):
                 continue
 
             if isinstance(v, list):
-                argtype = type(v[0]) if v else str
+                argtype = type(v[0]) if v else generic_type
                 nargs = '*'
+                extend_arg = '--{}+'.format(arg_name)
             else:
                 argtype = generic_type if v is None else type(v)
                 nargs = None
+                extend_arg = None
             parser.add_argument(*args, type=argtype, nargs=nargs, default=v, metavar=k.upper())
+            if extend_arg:
+                parser.add_argument(extend_arg, dest=arg_name, type=argtype, nargs='*', action='extend')
 
         return parser
 

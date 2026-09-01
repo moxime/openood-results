@@ -35,7 +35,6 @@ load:
       postprocessor_args:
         mu_ood: mu_ood
         max_iterations_per_phase: it_max
-        iterations_per_phase: it
         gasless: gasless
       padding:
         id: id_pad
@@ -45,7 +44,7 @@ load:
       ft:
         batch_size: ft_batch_size
         epochs: epochs
-        iterations_per_phase: it
+        iterations_per_phase: it/p
         wd: wd
         lr: lr
         beta: beta

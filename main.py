@@ -54,7 +54,7 @@ def main():
     scores_stats(df, **config.scores)
 
     if unknown_args:
-        logger.warning('Unknown args: {}'.format(', '.join(unknown_args)))
+        logger.error('Unknown args: {}'.format(', '.join(unknown_args)))
 
     try:
         df.print(**config.table)

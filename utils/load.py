@@ -226,7 +226,7 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
     if flash:
 
         try:
-            df = ResDF(pd.read_csv(csv_path, parse_dates=parse_dates))
+            df = ResDF(pd.read_csv(csv_path, parse_dates=parse_dates, low_memory=False))
             i = list(df).index('/')
             df.set_index(list(df)[:i], inplace=True)
             df.drop('/', axis=1, inplace=True)
@@ -240,7 +240,7 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
 
     if not flash:
 
-        logger.info('Looking for results in {}'.format(result_directory))
+        logger.info('Walking through {} for results'.format(result_directory))
         list_of_dfs = list(fetch_results(result_directory=result_directory, **kw))
         logger.info('Found {} results in {:.1f}s'.format(len(list_of_dfs), time.time() - t0))
         df = concatenate_df(*list_of_dfs, **kw)
