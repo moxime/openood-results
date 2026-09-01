@@ -58,11 +58,11 @@ def main():
 
     try:
         df.print(**config.table)
-        df.drop_index_levels(**config.table).to_latex(**config.table.tex)
+        df.drop_levels(**config.table).to_latex(**config.table.tex)
     except ValueError:
         pass
 
-    plot_scores(df.drop_index_levels(**config.table), **config.scores, wait=True)
+    plot_scores(df.drop_levels(**config.table), **config.scores, wait=True)
 
 
 if __name__ == '__main__':

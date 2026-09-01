@@ -48,7 +48,7 @@ args:
     - load.csv_index
 
 scores:
-  compute: False
+  compute: True
   q:
     id: 
     ood: 
@@ -63,7 +63,6 @@ scores:
   plot: True
   max_plots: 16
   plots: []
-  columns: []
   hist_params:
     bins: 200
     histtype: step

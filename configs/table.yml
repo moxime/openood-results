@@ -24,13 +24,13 @@ table:
     beta: [s_ood]
     lr: [wd]
 
-  columns:
+  columns_rename:
     FPR@95: fpr
     AUROC: auc
-    ACC: 
-    AUPR_IN:
-    AUPR_OUT:
-    SCORES:
+    ACC: acc
+    AUPR_IN: aupr_in
+    AUPR_OUT: aupr_out
+    SCORES: scores
     ID_Q: id_q
     OOD_Q: ood_q
     ID_MEAN: id
@@ -46,6 +46,17 @@ table:
     OOD_KURTOSIS: ood_kurt
     OOD_IQR: ood_iqr
     FISHER: fisher
+
+  columns:
+    - fpr
+    - auc
+    - id_q
+    - ood_q
+    - id
+    - id_std
+    - ood
+    - ood_std
+    - fisher
     
   tex:
     filename: '' #/tmp/table.tex

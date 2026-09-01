@@ -145,9 +145,10 @@ def plot_scores(df, plot=True, plots=[], wait=True, **kw):
         except NoPlotError:
             pass
 
-    for x in plots:
+    for x_y in plots:
+        x_y = x_y.split(':')
         try:
-            plot_x(df, x, **kw)
+            plot_x(df, x_y[0], columns=x_y[1:], **kw)
             has_plots = True
         except NoPlotError:
             pass

@@ -20,7 +20,8 @@ class DeleledRes(Exception):
     pass
 
 
-def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch'},  **kw):
+def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch'},
+             ignore_deleted=False, **kw):
 
     path = Path(path)
 
@@ -165,7 +166,7 @@ def sample_config(parsed_config, key, **config_keys):
     yield key, parsed_config
 
 
-def df_exp(path, root='./results', config_keys={}, **kw):
+def df_exp(path, root='./results', config_keys={'foo': 'bar'}, **kw):
     """
 
     """
@@ -193,7 +194,11 @@ def df_exp(path, root='./results', config_keys={}, **kw):
             v = '-'.join(map(str, sorted(v)))
         df[k] = v
     df.set_index(list(parsed_config), append=True, inplace=True)
-    df['path'] = path.relative_to(root)
+
+    try:
+        df['path'] = path.relative_to(root)
+    except ValueError:
+        df['path'] = path
     df.set_index('path', append=True, inplace=True)
     logger.debug('df ({}) filled up with {} indexes'.format(len(df), len(parsed_config)))
     return df
@@ -297,16 +302,9 @@ if __name__ == '__main__':
     from pathlib import Path
 
     print(sys.argv[1])
-    df = df_exp(sys.argv[1])
+    df = df_results(sys.argv[1])
 
-    print(df.index.names)
-    print(df.columns)
+    print('Index\n'+'\n'.join(df.index.names))
+    print('Cols\n' + '\n'.join(df.columns))
 
-    sys.exit()
-    p = Path('/tmp/config.yml')
-    c = load_config(p)
-
-    yaml.dump(c, stream=sys.stdout,
-              default_flow_style=False,
-              sort_keys=False,
-              indent=2)
+    print(df.to_string())

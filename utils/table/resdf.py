@@ -25,7 +25,11 @@ def ftype(t):
 
 
 def set_with_nan(iterable, return_type=False):
+    """To make a set from an iterable with only one nan if any
 
+    Rmk: set([a, a, b, nan, nan]) will return {a, b, nan, nan}
+
+    """
     s = set(iterable)
     has_nan = False
     dtype = float
@@ -114,9 +118,11 @@ class ResDF(pd.DataFrame):
         self.set_index(index_order, inplace=True)
         self.sort_index(inplace=True)
 
-    def drop_index_levels(self, exp_index=['job'], hide=[], drop_unique=True, show=[], **kw):
+    def drop_levels(self, exp_index=['job'], hide=[], drop_unique=True, show=[],
+                    columns_rename={'FPR@95': 'fpr', 'AUROC': 'auc'},
+                    **kw):
 
-        df = self.copy()
+        df = self.rename(columns=columns_rename)
         if self._dropped_index:
             logger.warning('index already dropped returing df.copy()')
             return df
@@ -191,20 +197,23 @@ class ResDF(pd.DataFrame):
         self.reorder_index_levels(**kw)
         return []
 
-    def print(self, columns={'FPR@95': 'fpr', 'AUROC': 'auc'}, show_dropped=True,
+    def print(self,
+              columns=None,
+              show_dropped=True,
               list_values=None, max_length=200,
               na_rep='--',
               float_format='{:.2f}'.format, **kw):
 
-        df = self.drop_index_levels(**kw)
+        df = self.drop_levels(**kw)
 
         if len(df) == 0:
             logger.error('Empty table, results are filtered out')
             raise ValueError
 
-        removed_cols = [_ for _ in df.columns if not columns.get(_)]
+        columns = columns or df.columns
+
+        removed_cols = [_ for _ in df.columns if _ not in columns]
         df.drop(removed_cols, axis='columns', inplace=True)
-        df.rename(columns=columns, inplace=True)
 
         df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
 
