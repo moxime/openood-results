@@ -35,7 +35,7 @@ load:
 
 args:
   aliases:
-    logger.__main__: [--logm, --debug:debug]
+    logger.__main__: [--logm]
     logger.__default__: [--log]
     load.result_directory: [-r]
     load.no_flash: [--reload]

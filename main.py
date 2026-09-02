@@ -46,7 +46,7 @@ def main():
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
 
-    unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config.table)
+    unknown_args = df.filter_parse_args(argv=filter_args, **config.table)
     scores_stats(df, **config.scores)
 
     if unknown_args:

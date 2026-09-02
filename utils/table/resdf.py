@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import sys
+import time
 
 from .logger import logger
 
@@ -148,11 +149,24 @@ class ResDF(pd.DataFrame):
 
         return df
 
-    def filter_parse_args(self, parser=None, argv=None, **kw):
+    def filter_index(self, key, *values, action='keep', inplace=True, **kw):
 
-        if not parser:
-            parser = argparse.ArgumentParser()
+        if action in ('rm', 'remove'):
+            action = 'remove'
 
+        assert action in ('remove', 'keep')
+
+        if key not in self.index.names:
+            raise ValueError('{} not in index names ()'.format(key, self.index.names))
+
+        if action == 'keep':
+            return self.drop(self.index[~self.index.isin(values, level=key)], inplace=inplace)
+
+        return self.drop(self.index[self.index.isin(values, level=key)], inplace=inplace)
+
+    def get_parsers(self, **kw):
+        keep_parser = argparse.ArgumentParser()
+        rm_parser = argparse.ArgumentParser()
         for name in self.index.names:
             values, dtype = set_with_nan(self.index.get_level_values(name), return_type=True)
             values_ = ','.join(map(str, values))
@@ -163,39 +177,47 @@ class ResDF(pd.DataFrame):
                          '({} default values: {})'.format(name, dtype.__name__,
                                                           len(values), values_))
 
-            parser.add_argument('--{}'.format(name), nargs='*',
-                                dest='filter.{}'.format(name),
-                                default=values, type=ftype(dtype))
+            keep_parser.add_argument('--{}'.format(name), nargs='*',
+                                     dest=name,
+                                     type=ftype(dtype))
 
-            parser.add_argument('--{}-'.format(name), nargs='*',
-                                dest='filter.{}.rm'.format(name),
-                                default=[],
-                                type=ftype(dtype))
+            rm_parser.add_argument('--{}-'.format(name), nargs='*',
+                                   dest=name,
+                                   type=ftype(dtype))
 
-        parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
+        rm_parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
+        return keep_parser, rm_parser
 
-        if argv:
-            args, unknown_args = parser.parse_known_args(argv)
+    def parse_args(self, argv, **kw):
 
-            for k in self.index.names:
-                df_len = len(self)
-                kept = vars(args)['filter.{}'.format(k)]
-                removed = vars(args)['filter.{}.rm'.format(k)]
-                values_before = set(self.index.get_level_values(k))
+        keep_parser, rm_parser = self.get_parsers()
+        keep_args, unknown_args = keep_parser.parse_known_args(argv)
+        rm_args, unknown_args = rm_parser.parse_known_args(unknown_args)
+        return vars(keep_args), vars(rm_args), unknown_args
+
+    def filter_parse_args(self, argv=None, **kw):
+
+        t0 = time.time()
+        kept_values, removed_values, unknown_args = self.parse_args(argv)
+
+        for k, kept in kept_values.items():
+            removed = removed_values[k]
+            df_len = len(self)
+            values_before = set(self.index.get_level_values(k))
+            if kept is not None:
                 self.drop(self.index[~self.index.isin(kept, level=k)], inplace=True)
+            if removed is not None:
                 self.drop(self.index[self.index.isin(removed, level=k)], inplace=True)
-                values = set(self.index.get_level_values(k))
-                logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
-                                                             kept if len(values) < len(values_before) else ''))
-            if args.last:
-                self.reorder_index_levels(index_order=['date', 'job'])
-                self.drop(self.index[:- --args.last], inplace=True)
+            values = set(self.index.get_level_values(k))
+            logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
+                                                         kept if len(values) < len(values_before) else ''))
+        if removed_values['last']:
+            self.reorder_index_levels(index_order=['date', 'job'])
+            self.drop(self.index[:- --removed_values['last']], inplace=True)
 
-            logger.info('Filtered table of length {}'.format(len(self)))
-            self.reorder_index_levels(**kw)
-            return unknown_args
+        logger.info('Filtered table of length {} in {:.1f}s'.format(len(self), time.time() - t0))
         self.reorder_index_levels(**kw)
-        return []
+        return unknown_args
 
     def print(self,
               columns=None,
@@ -284,6 +306,10 @@ if __name__ == '__main__':
     import sys
 
     import argparse
+
+    print(sys.argv)
+
+    sys.exit(0)
 
     argv = '--load.result_dir ./results/lab-ia/main --ood old_mix'.split()
 
