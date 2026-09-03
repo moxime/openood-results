@@ -57,6 +57,10 @@ table:
     - ood
     - ood_std
     - fisher
+
+  agg:
+    op: max
+    column:
     
   tex:
     filename: '' #/tmp/table.tex

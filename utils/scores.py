@@ -1,3 +1,4 @@
+import time
 from .table import ResDF
 import logging
 from pathlib import Path
@@ -44,8 +45,8 @@ def get_scores(df, unstack=[], **kw):
             yield idx, idx_str, {_: np.load(results[_]) for _ in results}
 
 
-def scores_stats(df, compute=True, q=dict(),
-                 fisher=True, max_compute=10, **kw):
+def compute_scores_stats(df, compute=True, q=dict(),
+                         fisher=True, max_compute=10, **kw):
 
     funcs = {'mean': np.mean, 'std': np.std,
              'skew': stats.skew, 'kurtosis': stats.kurtosis,
@@ -70,6 +71,7 @@ def scores_stats(df, compute=True, q=dict(),
         if kw.get(stat):
             logger.info('Will calculate {} for {}'.format(stat, ','.join(kw[stat])))
 
+    t0 = time.time()
     for idx, _, scores in get_scores(df):
         conf = scores['conf']
         label = scores['label']
@@ -102,6 +104,8 @@ def scores_stats(df, compute=True, q=dict(),
         if fisher and not skip:
             fisher_id_ood = (c['id'].mean() - c['ood'].mean())**2 / (c['id'].var() + c['ood'].var())
             df.loc[idx, 'FISHER'] = fisher_id_ood
+
+    logger.debug('Scores stats calculated in {:.2f}s'.format(time.time() - t0))
 
 
 class NoPlotError(ValueError):
@@ -250,4 +254,19 @@ def plot_phase(df, max_plots=3, **kw):
 
 if __name__ == '__main__':
 
-    pass
+    from . import df_results
+
+    df = df_results('/tmp/results/', flash=False)
+
+    # df.filter_index('ood', 'val', action='rm')
+
+    index_names = list(df.index.names)
+
+    index_names.remove('epoch')
+
+    df.reorder_index_levels([*index_names, 'eopch'])
+
+    idx = df['AUROC'].groupby(index_names).idxmax()
+
+    print(idx.dropna())
+    print(df.drop(index=idx.index).to_string())

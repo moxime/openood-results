@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 def main():
     import sys
     import argparse
-    from .utils import ConfigDict, set_loggers, df_results, plot_scores, scores_stats
+    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
     import pandas as pd
 
     config = ConfigDict()
@@ -47,18 +47,20 @@ def main():
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
 
     unknown_args = df.filter_parse_args(argv=filter_args, **config.table)
-    scores_stats(df, **config.scores)
+    compute_scores_stats(df, **config.scores)
+
+    df = df.drop_levels(**config.table)
 
     if unknown_args:
         logger.error('Unknown args: {}'.format(', '.join(unknown_args)))
 
     try:
         df.print(**config.table)
-        df.drop_levels(**config.table).to_latex(**config.table.tex)
+        df.to_latex(**config.table.tex)
     except ValueError:
         pass
 
-    plot_scores(df.drop_levels(**config.table), **config.scores, wait=True)
+    plot_scores(df, **config.scores, wait=True)
 
 
 if __name__ == '__main__':

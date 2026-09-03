@@ -67,6 +67,23 @@ class ResDF(pd.DataFrame):
         df._dropped_index = self._dropped_index.copy()
         return df
 
+    class Subsetter:
+        def __init__(self, df, locator):
+            self.locator = locator
+            self.dropped_index = df._dropped_index
+
+        def __getitem__(self, *vargs, **kwargs):
+            df = ResDF(self.locator.__getitem__(*vargs, **kwargs))
+            df._dropped_index = self.dropped_index.copy()
+            return df
+
+        def __setitem__(self, i, x):
+            return self.locator.__setitem__(i, x)
+
+    @property
+    def loc(self):
+        return self.Subsetter(self, super().loc)
+
     def sort_index(self, *a, **kw):
 
         logger.debug('Sort index')
@@ -147,7 +164,27 @@ class ResDF(pd.DataFrame):
         for _ in df._dropped_index:
             df.index = df.index.droplevel(_)
 
-        return df
+        return df.agg(**kw['agg'])
+
+    def agg(self, op='max', column=None, **kw):
+
+        if op != 'max':
+            raise NotImplementedError
+
+        if column is None:
+            return self
+
+        index_names = list(self.index.names)[:-1]
+
+        idx = self[column].groupby(index_names).idxmax()
+
+        # print('***')
+        # print(idx)
+
+        # print('***')
+        print(idx.dropna())
+
+        return self.loc[idx.dropna()]
 
     def filter_index(self, key, *values, action='keep', inplace=True, **kw):
 
@@ -162,6 +199,7 @@ class ResDF(pd.DataFrame):
         if action == 'keep':
             return self.drop(self.index[~self.index.isin(values, level=key)], inplace=inplace)
 
+        print('***', key, values)
         return self.drop(self.index[self.index.isin(values, level=key)], inplace=inplace)
 
     def get_parsers(self, **kw):
@@ -226,24 +264,22 @@ class ResDF(pd.DataFrame):
               na_rep='--',
               float_format='{:.2f}'.format, **kw):
 
-        df = self.drop_levels(**kw)
-
-        if len(df) == 0:
+        if len(self) == 0:
             logger.error('Empty table, results are filtered out')
             raise ValueError
 
-        columns = columns or df.columns
+        columns = columns or self.columns
 
-        removed_cols = [_ for _ in df.columns if _ not in columns]
-        df.drop(removed_cols, axis='columns', inplace=True)
+        removed_cols = [_ for _ in self.columns if _ not in columns]
+        self.drop(removed_cols, axis='columns', inplace=True)
 
-        df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
+        self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
 
-        if len(df) > max_length:
+        if len(self) > max_length:
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))
             raise ValueError
 
-        if len(df) == 0:
+        if len(self) == 0:
             logger.error('Empty table, no metrics available')
             raise ValueError
 
@@ -259,9 +295,9 @@ class ResDF(pd.DataFrame):
         if isinstance(float_format, str):
             float_format = float_format.format
 
-        df.sort_index(inplace=True)
+        self.sort_index(inplace=True)
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
-            df_str = df.to_string(float_format=float_format, na_rep=na_rep)
+            df_str = self.to_string(float_format=float_format, na_rep=na_rep)
 
         df_width = max(len(_) for _ in df_str.split('\n'))
 
@@ -271,7 +307,7 @@ class ResDF(pd.DataFrame):
         if show_dropped:
             df_str += ''
             df_str += '-' * df_width
-            for k, index in df._dropped_index.items():
+            for k, index in self._dropped_index.items():
                 v = set_with_nan(index)
                 if len(v) > 1:
                     df_str += '\n{:16} [{}]'.format(k, len(v))
@@ -325,11 +361,11 @@ if __name__ == '__main__':
 
     set_loggers(**config.logger)
 
-    df = df_results(**config.load)
-    df.reorder_index_levels(**config.table)
+    self = df_results(**config.load)
+    self.reorder_index_levels(**config.table)
 
-    unknown_args = df.filter_parse_args(parser=parser, argv=filter_args, **config.table)
+    unknown_args = self.filter_parse_args(parser=parser, argv=filter_args, **config.table)
 
-    print(df.index.names)
-    df.sort_index(inplace=True)
-    print(df.to_string(**config.table))
+    print(self.index.names)
+    self.sort_index(inplace=True)
+    print(self.to_string(**config.table))
