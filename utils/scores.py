@@ -26,12 +26,10 @@ def has_scores(df, **kw):
     return df.loc[index]
 
 
-def get_scores(df, unstack=[], **kw):
+def get_scores(df, **kw):
 
     df_with_scores = has_scores(df)
 
-    if unstack:
-        df_with_scores = df_with_scores.unstack(unstack)
     for idx, results in df_with_scores.iterrows():
         if not isinstance(idx, tuple):
             idx_str = str(idx)
@@ -72,6 +70,9 @@ def compute_scores_stats(df, compute=True, q=dict(),
             logger.info('Will calculate {} for {}'.format(stat, ','.join(kw[stat])))
 
     t0 = time.time()
+
+    df.sort_index(inplace=True)
+
     for idx, _, scores in get_scores(df):
         conf = scores['conf']
         label = scores['label']

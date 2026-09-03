@@ -107,7 +107,7 @@ class ResDF(pd.DataFrame):
     def sort_index(self, *a, **kw):
 
         self._fullindex_frame.sort_index(*a, **kw)
-        return super().sort_index(*a, **kw)
+        super().sort_index(*a, **kw)
 
     @inplaceable
     def set_index(self, *a, **kw):
@@ -201,6 +201,8 @@ class ResDF(pd.DataFrame):
 
         df._fullindex_frame = fullindex.to_frame()
         df._fullindex_frame.index = df.index
+
+        df.sort_index(inplace=True)
 
         return df.agg(**kw['agg'])
 
@@ -328,7 +330,6 @@ class ResDF(pd.DataFrame):
         if isinstance(float_format, str):
             float_format = float_format.format
 
-        self.sort_index(inplace=True)
         with pd.option_context("display.date_dayfirst", True, "display.date_yearfirst", False):
             df_str = self.to_string(float_format=float_format, na_rep=na_rep)
 
