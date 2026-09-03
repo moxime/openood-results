@@ -231,7 +231,7 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
     if flash:
 
         try:
-            df = ResDF(pd.read_csv(csv_path, parse_dates=parse_dates, low_memory=False))
+            df = pd.read_csv(csv_path, parse_dates=parse_dates, low_memory=False)
             i = list(df).index('/')
             df.set_index(list(df)[:i], inplace=True)
             df.drop('/', axis=1, inplace=True)
@@ -258,6 +258,7 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
 
     logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
 
+    df = ResDF(df)
     df.result_directory = None
     df.result_directory = result_directory
 
@@ -292,7 +293,7 @@ def concatenate_df(*dfs, index_fill_values={}, **kw):
 
         df_.append(df)
 
-    return ResDF(pd.concat(df_))
+    return pd.concat(df_)
 
 
 if __name__ == '__main__':

@@ -7,6 +7,19 @@ import time
 from .logger import logger
 
 
+def inplaceable(func):
+
+    def modified(self, *a, inplace=False, **kw):
+        if not inplace:
+            df = self.copy()
+            func(df, *a, inplace=True, **kw)
+            return df
+        kw['inplace'] = True
+        return func(self, *a, **kw)
+
+    return modified
+
+
 def ftype(t):
 
     def _type(s):
@@ -59,37 +72,60 @@ class ResDF(pd.DataFrame):
         super().__init__(*a, **kw)
         self._dropped_index = None
         self._dropped_index = {}
-        self._fullindex = None
+        self._fullindex_frame = None
+        self._fullindex_frame = self.index.to_frame()
+        self._fullindex_frame.index = self.index
 
     def copy(self, **kw):
 
         df = type(self)(super().copy(**kw))
         df._dropped_index = self._dropped_index.copy()
+        df._fullindex_frame = self._fullindex_frame.copy(**kw)
         return df
 
     class Subsetter:
-        def __init__(self, df, locator):
+        def __init__(self, df, locator, fullindex_locator):
             self.locator = locator
             self.dropped_index = df._dropped_index
+            self.fullindex_frame = df._fullindex_frame
+            self.fullindex_frame_locator = fullindex_locator
 
         def __getitem__(self, *vargs, **kwargs):
             df = ResDF(self.locator.__getitem__(*vargs, **kwargs))
             df._dropped_index = self.dropped_index.copy()
+            df._fullindex_frame = self.fullindex_frame_locator.__getitem__(*vargs, **kwargs)
             return df
 
-        def __setitem__(self, i, x):
-            return self.locator.__setitem__(i, x)
+        def __setitem__(self, *a, **kw):
+            return self.locator.__setitem__(*a, **kw)
 
     @property
     def loc(self):
-        return self.Subsetter(self, super().loc)
+        return self.Subsetter(self, super().loc, self._fullindex_frame.loc)
 
+    @inplaceable
     def sort_index(self, *a, **kw):
 
-        logger.debug('Sort index')
-        # once sorted, full index is no longer reliable
-        self._fullindex = None
+        self._fullindex_frame.sort_index(*a, **kw)
         return super().sort_index(*a, **kw)
+
+    @inplaceable
+    def set_index(self, *a, **kw):
+
+        super().set_index(*a, **kw)
+        self._fullindex_frame.index = self.index
+
+    @inplaceable
+    def reset_index(self, *a, **kw):
+
+        return super().reset_index(*a, **kw)
+
+    @inplaceable
+    def drop(self, labels=None, **kw):
+        if kw.get('axis', 0) in (1, 'columns'):
+            return super().drop(labels, **kw)
+        self._fullindex_frame.drop(labels, **kw)
+        return super().drop(labels, **kw)
 
     def unstack(self, *a, **kw):
         d = super().unstack(*a, **kw)
@@ -97,9 +133,7 @@ class ResDF(pd.DataFrame):
 
     @property
     def fullindex(self):
-        if not self._dropped_index:
-            return self.index
-        return self._fullindex
+        return pd.MultiIndex.from_frame(self._fullindex_frame)
 
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
@@ -134,6 +168,7 @@ class ResDF(pd.DataFrame):
         logger.debug('Index order: {}'.format(', '.join(index_order)))
         self.reset_index(inplace=True)
         self.set_index(index_order, inplace=True)
+
         self.sort_index(inplace=True)
 
     def drop_levels(self, exp_index=['job'], hide=[], drop_unique=True, show=[],
@@ -146,7 +181,7 @@ class ResDF(pd.DataFrame):
             return df
         assert not self._dropped_index
 
-        df._fullindex = self.index.copy()
+        fullindex = self.index.copy()
 
         hidden = set(df.index.names) & (set(hide) | set(exp_index))
 
@@ -164,6 +199,9 @@ class ResDF(pd.DataFrame):
         for _ in df._dropped_index:
             df.index = df.index.droplevel(_)
 
+        df._fullindex_frame = fullindex.to_frame()
+        df._fullindex_frame.index = df.index
+
         return df.agg(**kw['agg'])
 
     def agg(self, op='max', column=None, **kw):
@@ -177,12 +215,6 @@ class ResDF(pd.DataFrame):
         index_names = list(self.index.names)[:-1]
 
         idx = self[column].groupby(index_names).idxmax()
-
-        # print('***')
-        # print(idx)
-
-        # print('***')
-        print(idx.dropna())
 
         return self.loc[idx.dropna()]
 
@@ -199,7 +231,6 @@ class ResDF(pd.DataFrame):
         if action == 'keep':
             return self.drop(self.index[~self.index.isin(values, level=key)], inplace=inplace)
 
-        print('***', key, values)
         return self.drop(self.index[self.index.isin(values, level=key)], inplace=inplace)
 
     def get_parsers(self, **kw):
@@ -243,9 +274,9 @@ class ResDF(pd.DataFrame):
             df_len = len(self)
             values_before = set(self.index.get_level_values(k))
             if kept is not None:
-                self.drop(self.index[~self.index.isin(kept, level=k)], inplace=True)
+                self.filter_index(k, *kept)
             if removed is not None:
-                self.drop(self.index[self.index.isin(removed, level=k)], inplace=True)
+                self.filter_index(k, *removed, action='remove')
             values = set(self.index.get_level_values(k))
             logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
                                                          kept if len(values) < len(values_before) else ''))
@@ -267,6 +298,8 @@ class ResDF(pd.DataFrame):
         if len(self) == 0:
             logger.error('Empty table, results are filtered out')
             raise ValueError
+
+        self = self.copy()
 
         columns = columns or self.columns
 

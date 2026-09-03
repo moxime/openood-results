@@ -38,6 +38,7 @@ def main():
     for line in str(config).split('\n'):
         logger.debug(line)
 
+    df = df_results(**config.load)
     try:
         df = df_results(**config.load)
     except ValueError:
