@@ -60,7 +60,7 @@ def main():
     except ValueError:
         pass
 
-    plot_scores(df, **config.scores, wait=True)
+    plot_scores(df, **config.table.plot, wait=True)
 
 
 if __name__ == '__main__':

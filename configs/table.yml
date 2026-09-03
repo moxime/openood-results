@@ -61,7 +61,15 @@ table:
   agg:
     op: max
     column:
-    
+
+  plot:
+    max_plots: 16
+    plots: []
+    hist_params:
+      bins: 200
+      histtype: step
+
+      
   tex:
     filename: '' #/tmp/table.tex
     columns:

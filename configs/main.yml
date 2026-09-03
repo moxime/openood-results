@@ -60,9 +60,3 @@ scores:
   medcouple: []
   kurtosis: []
   max_compute: 20000
-  plot: True
-  max_plots: 16
-  plots: []
-  hist_params:
-    bins: 200
-    histtype: step
