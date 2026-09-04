@@ -63,7 +63,7 @@ table:
     column:
 
   plot:
-    max_plots: 16
+    max_figs: 16
     plots: []
     hist_params:
       bins: 200

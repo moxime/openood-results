@@ -9,7 +9,52 @@ class NoPlotError(ValueError):
     pass
 
 
-def plot_scores(df, plot=True, plots=[], wait=True, **kw):
+class AxisArray:
+
+    def __init__(self, max_figs=20):
+
+        self.figs = []
+
+        self._last_figkw = {}
+        self._iter = iter([])
+
+        self.max_figs = max_figs
+
+    def new_fig(self, **kw):
+
+        self._last_figkw = kw.copy()
+        suptitle = kw.pop('suptitle', None)
+
+        fig, axis = plt.subplots(squeeze=False, **kw)
+
+        if suptitle:
+            fig.suptitle(suptitle)
+        self.figs.append(fig)
+
+        self._iter = iter(axis.flatten())
+
+    def show(self):
+
+        for f in self.figs:
+            f.show()
+
+    def plot(self, *a, **kw):
+        next(self).plot(*a, **kw)
+
+    def __next__(self):
+        try:
+            return next(self._iter)
+        except StopIteration:
+            if len(self.figs) < self.max_figs:
+                self.new_fig(**self._last_figkw)
+                return next(self)
+            raise StopIteration
+
+    def __iter__(self):
+        return self
+
+
+def plot_scores(df, plot=True, plots=[], max_figs=20, wait=True, **kw):
 
     if not plot or not plots:
         logger.info('Do not plot')
@@ -17,49 +62,53 @@ def plot_scores(df, plot=True, plots=[], wait=True, **kw):
     else:
         logger.info('Tries to plot {}'.format(','.join(plots)))
 
-    if 'phase' not in df.index.names and 'phase' in plots:
-        logger.error('Will not plot phase (hidden or unique)')
-        plots.remove('phase')
+    axes = AxisArray(max_figs=max_figs)
 
-    has_plots = False
-    if 'hist' in plots:
-        plots.remove('hist')
-        try:
-            plot_hist(df, **kw)
-            has_plots = True
-        except NoPlotError:
-            pass
+    try:
+        if 'hist' in plots:
+            plots.remove('hist')
+            axes.new_fig(nrows=2, ncols=3, suptitle='Score hist')
+            try:
+                plot_hist(df, axes=axes, **kw)
+            except NoPlotError:
+                pass
 
-    if 'phase' in plots:
-        plots.remove('phase')
-        try:
-            plot_phase(df, **kw)
-            has_plots = True
-        except NoPlotError:
-            pass
+        if 'phase' in plots:
+            plots.remove('phase')
+            try:
+                plot_phase(df, axes=axes, **kw)
+                has_plots = True
+            except NoPlotError:
+                pass
 
-    if 'boxplots' in plots:
-        plots.remove('boxplots')
-        try:
-            plot_boxplots(df, **kw)
-            has_plots = True
-        except NoPlotError:
-            pass
+        if 'boxplots' in plots:
+            plots.remove('boxplots')
+            try:
+                plot_boxplots(df, **kw)
+                has_plots = True
+            except NoPlotError:
+                pass
 
-    for x_y in plots:
-        x_y = x_y.split(':')
-        if not len(x_y) == 2:
-            logger.error('Can not plot {}'.format(':'.join(x_y)))
-            continue
-        try:
-            plot_x(df, x_y[0], column=x_y[1:], **kw)
-            has_plots = True
-        except NoPlotError:
-            pass
+        for x_y in plots:
+            try:
+                x, y = x_y.split(':')
+            except ValueError:
+                logger.error('Can not plot {}'.format(x_y))
+                continue
+            try:
+                axes.new_fig(nrows=2, ncols=3, suptitle=x_y)
+                plot_x(df, x=x, column=y, axes=axes, **kw)
+            except NoPlotError:
+                pass
 
-    if not has_plots:
+    except StopIteration:
+        logger.warning('Tried to make too much figs, stopped at {}'.format(max_figs))
+
+    if not axes.figs:
         logger.info('No plot')
-    if wait and has_plots:
+        return
+    axes.show()
+    if wait:
         input()
 
 
@@ -86,16 +135,31 @@ def plot_boxplots(df, max_plots=3, **kw):
     raise NoPlotError
 
 
-def plot_x(df, x=None, max_plots=3, column=[], **kw):
+def plot_x(df, column, x=None, axes=None, **kw):
 
     if not x:
         raise NoPlotError
 
-    df = has_scores(df).select_dtypes('float')
+    if column not in df:
+        logger.error('{} is not in table columns'.format(x))
+        raise NoPlotError
 
     if x not in df.index.names:
         logger.error('{} is not in table index, try to add it with --table.show {}'.format(x, x))
         raise NoPlotError
+
+    idx = list(df.index.names)
+
+    while x != idx[-1]:
+        idx.pop(-1)
+
+    df_count = df.groupby(idx)[column].count()
+
+    if not (df_count == 1).all():
+        logger.error('Change table index order such that there is only one entry per {}'.format(x))
+        raise NoPlotError
+
+    df = df.groupby(idx)[column].mean()
 
     df = df.unstack(x)
 
@@ -103,29 +167,15 @@ def plot_x(df, x=None, max_plots=3, column=[], **kw):
         df = pd.DataFrame(df).T
         df.index = pd.MultiIndex.from_tuples([('result',)], names=[''])
 
+    axes = axes or AxisArray()
+
     for idx, row in df.iterrows():
         if not isinstance(idx, tuple):
             idx = (idx,)
         idx_str = ' '.join('{}:{}'.format(n, i) for n, i in zip(df.index.names, idx))
         logger.debug('Plotting metrics for x={} for {}'.format(x, idx_str))
-        fig = plt.figure(idx_str)
-        ax = fig.gca()
-        row_df = pd.DataFrame(row).unstack(x).T
-        no_plot = True
-        for c in row_df:
-            if column and c not in column:
-                continue
-            label = c
-            series = row_df[c]
-            if series.isnull().all():
-                continue
-            no_plot = False
-            ax.plot(row_df.index.get_level_values(x), series, label=label)
-        if not no_plot:
-            ax.legend()
-            fig.show()
-        else:
-            raise NoPlotError
+
+        row.plot(ax=next(axes), title=idx_str, ylabel=column)
 
 
 def plot_phase(df, max_plots=3, **kw):
