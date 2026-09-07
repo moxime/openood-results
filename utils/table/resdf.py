@@ -240,6 +240,9 @@ class ResDF(pd.DataFrame):
 
         df.sort_index(inplace=True)
 
+        self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
+        self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
+
         return df.agg(**kw['agg'])
 
     def agg(self, op='max', column=None, **kw):
@@ -349,9 +352,6 @@ class ResDF(pd.DataFrame):
 
         removed_cols = [_ for _ in self.columns if _ not in columns]
         self.drop(removed_cols, axis='columns', inplace=True)
-
-        self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
-        self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
 
         if len(self) > max_length:
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))
