@@ -78,7 +78,7 @@ class ResDF(pd.DataFrame):
         self._fullindex_frame.index = self.index
 
         self._filters = None
-        self._filters = dict(kept={}, removed={})
+        self._filters = dict(kept={}, removed={}, agg={})
 
     def copy(self, **kw):
 
@@ -129,6 +129,8 @@ class ResDF(pd.DataFrame):
             removed = self._filters['removed'].get(k)
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
+
+        table_name.update(self._filters['agg'])
 
         return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items())
 
@@ -252,7 +254,10 @@ class ResDF(pd.DataFrame):
 
         idx = self[column].groupby(index_names).idxmax()
 
-        return self.loc[idx.dropna()]
+        agg_df = self.loc[idx.dropna()]
+
+        agg_df._filters['agg'] = {op: column}
+        return agg_df
 
     def filter_index(self, key, *values, action='keep', inplace=True, **kw):
 
