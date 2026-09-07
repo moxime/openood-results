@@ -1,3 +1,4 @@
+from pathlib import Path
 import argparse
 import numpy as np
 import pandas as pd
@@ -76,12 +77,27 @@ class ResDF(pd.DataFrame):
         self._fullindex_frame = self.index.to_frame()
         self._fullindex_frame.index = self.index
 
+        self._filters = None
+        self._filters = dict(kept={}, removed={})
+
     def copy(self, **kw):
 
         df = type(self)(super().copy(**kw))
         df._dropped_index = self._dropped_index.copy()
         df._fullindex_frame = self._fullindex_frame.copy(**kw)
+
+        df.result_directory = self.result_directory
+        df._filters = self._filters.copy()
         return df
+
+    @property
+    def result_directory(self):
+        return Path(self._result_directory)
+
+    @result_directory.setter
+    def result_directory(self, val):
+        self._result_directory = None
+        self._result_directory = val
 
     class Subsetter:
         def __init__(self, df, locator, fullindex_locator):
@@ -89,15 +105,32 @@ class ResDF(pd.DataFrame):
             self.dropped_index = df._dropped_index
             self.fullindex_frame = df._fullindex_frame
             self.fullindex_frame_locator = fullindex_locator
+            self._result_directory = df.result_directory
+            self._filters = df._filters.copy()
 
         def __getitem__(self, *vargs, **kwargs):
             df = ResDF(self.locator.__getitem__(*vargs, **kwargs))
             df._dropped_index = self.dropped_index.copy()
             df._fullindex_frame = self.fullindex_frame_locator.__getitem__(*vargs, **kwargs)
+            df.result_directory = self._result_directory
+            df._filters = self._filters
             return df
 
         def __setitem__(self, *a, **kw):
             return self.locator.__setitem__(*a, **kw)
+
+    @property
+    def name(self):
+        table_name = {}
+
+        for k, kept in self._filters['kept'].items():
+            if kept:
+                table_name[k] = '+' + '+'.join(map(str, kept))
+            removed = self._filters['removed'].get(k)
+            if removed:
+                table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
+
+        return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items())
 
     @property
     def loc(self):
@@ -176,6 +209,7 @@ class ResDF(pd.DataFrame):
                     **kw):
 
         df = self.rename(columns=columns_rename)
+
         if self._dropped_index:
             logger.warning('index already dropped returing df.copy()')
             return df
@@ -271,6 +305,8 @@ class ResDF(pd.DataFrame):
         t0 = time.time()
         kept_values, removed_values, unknown_args = self.parse_args(argv)
 
+        self._filters = dict(kept=kept_values, removed=removed_values)
+
         for k, kept in kept_values.items():
             removed = removed_values[k]
             df_len = len(self)
@@ -288,6 +324,7 @@ class ResDF(pd.DataFrame):
 
         logger.info('Filtered table of length {} in {:.1f}s'.format(len(self), time.time() - t0))
         self.reorder_index_levels(**kw)
+
         return unknown_args
 
     def print(self,
@@ -309,6 +346,7 @@ class ResDF(pd.DataFrame):
         self.drop(removed_cols, axis='columns', inplace=True)
 
         self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
+        self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
 
         if len(self) > max_length:
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))

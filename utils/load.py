@@ -259,7 +259,6 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
     logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
 
     df = ResDF(df)
-    df.result_directory = None
     df.result_directory = result_directory
 
     return df

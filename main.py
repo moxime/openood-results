@@ -38,7 +38,6 @@ def main():
     for line in str(config).split('\n'):
         logger.debug(line)
 
-    df = df_results(**config.load)
     try:
         df = df_results(**config.load)
     except ValueError:
@@ -48,6 +47,7 @@ def main():
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
 
     unknown_args = df.filter_parse_args(argv=filter_args, **config.table)
+
     compute_scores_stats(df, **config.scores)
 
     df = df.drop_levels(**config.table)
