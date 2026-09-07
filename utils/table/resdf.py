@@ -240,8 +240,8 @@ class ResDF(pd.DataFrame):
 
         df.sort_index(inplace=True)
 
-        self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
-        self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
+        df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
+        df.drop(df.columns[df.isnull().all(axis=0)], axis=1,  inplace=True)
 
         return df.agg(**kw['agg'])
 
@@ -255,7 +255,7 @@ class ResDF(pd.DataFrame):
 
         index_names = list(self.index.names)[:-1]
 
-        idx = self[column].groupby(index_names).idxmax()
+        idx = self[column].groupby(index_names, dropna=False).idxmax()
 
         agg_df = self.loc[idx.dropna()]
 
@@ -313,7 +313,7 @@ class ResDF(pd.DataFrame):
         t0 = time.time()
         kept_values, removed_values, unknown_args = self.parse_args(argv)
 
-        self._filters = dict(kept=kept_values, removed=removed_values)
+        self._filters.update(kept=kept_values, removed=removed_values)
 
         for k, kept in kept_values.items():
             removed = removed_values[k]
@@ -340,7 +340,10 @@ class ResDF(pd.DataFrame):
               show_dropped=True,
               list_values=None, max_length=200,
               na_rep='--',
-              float_format='{:.2f}'.format, **kw):
+              float_format='{:.2f}'.format,
+              name=None,
+              subdir='tables',
+              **kw):
 
         if len(self) == 0:
             logger.error('Empty table, results are filtered out')
@@ -350,8 +353,13 @@ class ResDF(pd.DataFrame):
 
         columns = columns or self.columns
 
+        name = name or self.name
+
         removed_cols = [_ for _ in self.columns if _ not in columns]
         self.drop(removed_cols, axis='columns', inplace=True)
+
+        (self.result_directory / subdir).mkdir(exist_ok=True)
+        self.to_csv((self.result_directory / subdir / name).with_suffix('.csv'))
 
         if len(self) > max_length:
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))
