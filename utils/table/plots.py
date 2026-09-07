@@ -96,7 +96,7 @@ def plot_scores(df, plot=True, plots=[], max_figs=20, wait=True, **kw):
                 logger.error('Can not plot {}'.format(x_y))
                 continue
             try:
-                axes.new_fig(nrows=2, ncols=3, suptitle=x_y)
+                axes.new_fig(nrows=1, ncols=1, suptitle=x_y)
                 plot_x(df, x=x, column=y, axes=axes, **kw)
             except NoPlotError:
                 pass
@@ -161,21 +161,15 @@ def plot_x(df, column, x=None, axes=None, **kw):
 
     df = df.groupby(idx)[column].mean()
 
-    df = df.unstack(x)
+    if not isinstance(df.index, pd.MultiIndex):
+        df.index = pd.MultiIndex.from_product((df.index, ['']), names=(x, ''))
 
-    if isinstance(df, pd.Series):
-        df = pd.DataFrame(df).T
-        df.index = pd.MultiIndex.from_tuples([('result',)], names=[''])
+    df = df.unstack(x).T
 
     axes = axes or AxisArray()
 
-    for idx, row in df.iterrows():
-        if not isinstance(idx, tuple):
-            idx = (idx,)
-        idx_str = ' '.join('{}:{}'.format(n, i) for n, i in zip(df.index.names, idx))
-        logger.debug('Plotting metrics for x={} for {}'.format(x, idx_str))
-
-        row.plot(ax=next(axes), title=idx_str, ylabel=column)
+    df.plot(ax=next(axes), xlabel=x, ylabel=column)
+    logger.debug('Plotting metrics for x={}'.format(x))
 
 
 def plot_phase(df, max_plots=3, **kw):
