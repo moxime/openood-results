@@ -53,8 +53,6 @@ def main():
 
     df = df.drop_levels(**config.table)
 
-    print(df.columns)
-
     if unknown_args:
         logger.error('Unknown args: {}'.format(', '.join(unknown_args)))
 
