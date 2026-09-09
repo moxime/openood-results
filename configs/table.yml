@@ -59,8 +59,8 @@ table:
     - fisher
 
   agg:
-    op: max
-    column:
+    op: [max]
+    columns: []
 
   plot:
     max_figs: 16

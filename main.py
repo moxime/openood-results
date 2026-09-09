@@ -40,8 +40,9 @@ def main():
 
     try:
         df = df_results(**config.load)
-    except ValueError:
+    except ValueError as e:
         logger.error('No results to be loaded in {}'.format(config.load.result_directory))
+        logger.debug(e)
         return
 
     logger.debug('Filter args: {}'.format(', '.join(filter_args)))
