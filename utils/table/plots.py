@@ -25,6 +25,12 @@ class AxisArray:
         self._last_figkw = kw.copy()
         suptitle = kw.pop('suptitle', None)
 
+        n_subplots = kw.pop('n_subplots', None)
+
+        if n_subplots:
+            kw.update(dict(nrows=min(2, n_subplots // 3 + 1),
+                           ncols=min(n_subplots, 3)))
+
         fig, axis = plt.subplots(squeeze=False, **kw)
 
         if suptitle:
@@ -96,7 +102,6 @@ def plot_scores(df, plot=True, plots=[], max_figs=20, wait=True, **kw):
                 logger.error('Can not plot {}'.format(x_y))
                 continue
             try:
-                axes.new_fig(nrows=1, ncols=1, suptitle=x_y)
                 plot_x(df, x=x, column=y, axes=axes, **kw)
             except NoPlotError:
                 pass
@@ -135,13 +140,25 @@ def plot_boxplots(df, max_plots=3, **kw):
     raise NoPlotError
 
 
-def plot_x(df, column, x=None, axes=None, **kw):
+def split_by_column_levels(df, n=1):
+
+    keys = df.columns.droplevel(list(range(n, df.columns.nlevels))).unique()
+
+    return {'-'.join(map(str, key)): df.xs(key, axis=1, level=list(range(n)))
+            for key in keys}
+
+
+def plot_x(df, x=None, column='auc',
+           split_levels=0,
+           axes=None,  subdir='plots', **kw):
+
+    name, result_directory = '{}:{}--{}'.format(x, column, df.name), df.result_directory
 
     if not x:
         raise NoPlotError
 
     if column not in df:
-        logger.error('{} is not in table columns'.format(x))
+        logger.error('{} is not in table columns'.format(column))
         raise NoPlotError
 
     if x not in df.index.names:
@@ -153,20 +170,36 @@ def plot_x(df, column, x=None, axes=None, **kw):
     while x != idx[-1]:
         idx.pop(-1)
 
-    df_count = df.groupby(idx)[column].count()
+    gb = df.groupby(idx, dropna=False)[column]
+    df_count = gb.count()
 
     if not (df_count == 1).all():
         logger.error('Change table index order such that there is only one entry per {}'.format(x))
         raise NoPlotError
 
-    df = df.groupby(idx)[column].mean()
+    df = gb.mean()
 
     if not isinstance(df.index, pd.MultiIndex):
         df.index = pd.MultiIndex.from_product((df.index, ['']), names=(x, ''))
 
     df = df.unstack(x).T
 
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.map(lambda col: '-'.join(map(str, col)))
+
+    (result_directory / subdir).mkdir(exist_ok=True)
+    csv_file = (result_directory / subdir / name).with_suffix('.csv')
+    df.to_csv(csv_file)
+
     axes = axes or AxisArray()
+
+    if split_levels:
+        dfs = split_by_column_levels(df, n=split_levels)
+    else:
+        dfs = {'': df}
+
+    n_subplots = len(dfs)
+    axes.new_fig(nrows=1, ncols=1, suptitle='{}:{}'.format(x, column))
 
     df.plot(ax=next(axes), xlabel=x, ylabel=column)
     logger.debug('Plotting metrics for x={}'.format(x))

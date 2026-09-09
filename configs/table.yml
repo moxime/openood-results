@@ -62,30 +62,22 @@ table:
     op: max
     column:
 
+  name:
+
   plot:
     max_figs: 16
     plots: []
+    split_levels: 0
     hist_params:
       bins: 200
       histtype: step
-
+    subdir: plots
       
   tex:
     filename: '' #/tmp/table.tex
     columns:
-      FPR@95: 
-      AUROC: AUC
-      ACC: 
-      AUPR_IN:
-      AUPR_OUT:
-      ID_Q: 
-      OOD_Q:
-      ID_M: 
-      ID_STD: 
-      ID_SKEW: id skew
-      OOD_M: 
-      OOD_STD: 
-      OOD_SKEW:
+      fpr: FPR,
+      auroc: AUROC,
     index:
       chunk:
         name: $N$
