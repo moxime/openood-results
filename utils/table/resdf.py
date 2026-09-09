@@ -129,12 +129,18 @@ class ResDF(pd.DataFrame):
             self._filters = df._filters.copy()
 
         def __getitem__(self, *vargs, **kwargs):
-            df = ResDF(self.locator.__getitem__(*vargs, **kwargs))
+            df_raw = self.locator.__getitem__(*vargs, **kwargs)
+            if not isinstance(df_raw, (pd.Series, pd.DataFrame)):
+                return df_raw
+            df = ResDF(df_raw)
             df._dropped_index = self.dropped_index.copy()
             df._fullindex_frame = self.fullindex_frame_locator.__getitem__(*vargs, **kwargs)
             df.result_directory = self._result_directory
             df._filters = self._filters
             return df
+
+        def _getitem_axis(self, *a, **kw):
+            return self.locator._getitem_axis(*a, **kw)
 
         def __setitem__(self, *a, **kw):
             return self.locator.__setitem__(*a, **kw)
@@ -280,7 +286,7 @@ class ResDF(pd.DataFrame):
 
             if o != 'max':
                 raise NotImplementedError
-            
+
             index_names = agg_df.meaningfull_index
 
             index_names, last_index = index_names[:-1], index_names[-1]

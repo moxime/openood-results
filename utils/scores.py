@@ -44,7 +44,7 @@ def get_scores(df, **kw):
 
 
 def compute_scores_stats(df, compute=True, q=dict(),
-                         fisher=True, max_compute=10, **kw):
+                         fisher=True, max_compute=10, update_fpr=True, **kw):
 
     funcs = {'mean': np.mean, 'std': np.std,
              'skew': stats.skew, 'kurtosis': stats.kurtosis,
@@ -105,6 +105,11 @@ def compute_scores_stats(df, compute=True, q=dict(),
         if fisher and not skip:
             fisher_id_ood = (c['id'].mean() - c['ood'].mean())**2 / (c['id'].var() + c['ood'].var())
             df.loc[idx, 'FISHER'] = fisher_id_ood
+
+        if update_fpr and not skip:
+            if 'FPR@95' not in df.loc[idx].index or np.isnan(df.loc[idx, 'FPR@95']):
+                thr = np.quantile(c['id'], 0.05)
+                df.loc[idx, 'FPR@95'] = (c['ood'] > thr).mean() * 100
 
     logger.debug('Scores stats calculated in {:.2f}s'.format(time.time() - t0))
 
