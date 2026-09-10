@@ -284,14 +284,17 @@ class ResDF(pd.DataFrame):
 
         for o, column in zip(op, columns):
 
-            if o != 'max':
+            if o not in ('min', 'max'):
                 raise NotImplementedError
 
             index_names = agg_df.meaningfull_index
 
             index_names, last_index = index_names[:-1], index_names[-1]
 
-            idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
+            if o == 'max':
+                idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
+            elif o == 'min':
+                idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
 
             agg_df = agg_df.loc[idx.dropna()]
 
@@ -402,7 +405,7 @@ class ResDF(pd.DataFrame):
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))
             raise ValueError
 
-        if len(self) == 0:
+        if not (len(self) and len(self.columns)):
             logger.error('Empty table, no metrics available')
             raise ValueError
 

@@ -53,14 +53,14 @@ def main():
 
     df = df.drop_levels(**config.table)
 
-    if unknown_args:
-        logger.error('Unknown args: {}'.format(', '.join(unknown_args)))
-
     try:
         df.print(**config.table)
         df.to_latex(**config.table.tex)
     except ValueError:
         pass
+
+    if unknown_args:
+        logger.error('Unknown args: {}'.format(', '.join(unknown_args)))
 
     plot_scores(df, **config.table.plot, wait=True)
 
