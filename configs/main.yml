@@ -59,4 +59,5 @@ scores:
   skew: []
   medcouple: []
   kurtosis: []
+  update_fpr: False
   max_compute: 20000

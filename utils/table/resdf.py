@@ -9,6 +9,11 @@ from .logger import logger
 
 
 def inplaceable(func):
+    """
+    func has to have a inplace kw
+
+    if inplace=False, will first copy self and then execute func on self.copy() with inplace=True
+    """
 
     def modified(self, *a, inplace=False, **kw):
         if not inplace:
@@ -80,6 +85,9 @@ class ResDF(pd.DataFrame):
         self._filters = None
         self._filters = dict(kept={}, removed={}, agg={})
 
+        self._meaningfull_index = None
+        self._meaningfull_index = list(self.index.names)
+
     def copy(self, **kw):
 
         df = type(self)(super().copy(**kw))
@@ -88,11 +96,23 @@ class ResDF(pd.DataFrame):
 
         df.result_directory = self.result_directory
         df._filters = self._filters.copy()
+
         return df
 
     @property
     def result_directory(self):
         return Path(self._result_directory)
+
+    @property
+    def meaningfull_index(self):
+
+        while self._meaningfull_index:
+            agg_df = self.groupby(self._meaningfull_index[:-1]).count()
+            if not (agg_df == 1).all().all():
+                break
+            self._meaningfull_index.pop(-1)
+
+        return self._meaningfull_index
 
     @result_directory.setter
     def result_directory(self, val):
@@ -109,12 +129,18 @@ class ResDF(pd.DataFrame):
             self._filters = df._filters.copy()
 
         def __getitem__(self, *vargs, **kwargs):
-            df = ResDF(self.locator.__getitem__(*vargs, **kwargs))
+            df_raw = self.locator.__getitem__(*vargs, **kwargs)
+            if not isinstance(df_raw, (pd.Series, pd.DataFrame)):
+                return df_raw
+            df = ResDF(df_raw)
             df._dropped_index = self.dropped_index.copy()
             df._fullindex_frame = self.fullindex_frame_locator.__getitem__(*vargs, **kwargs)
             df.result_directory = self._result_directory
             df._filters = self._filters
             return df
+
+        def _getitem_axis(self, *a, **kw):
+            return self.locator._getitem_axis(*a, **kw)
 
         def __setitem__(self, *a, **kw):
             return self.locator.__setitem__(*a, **kw)
@@ -125,7 +151,7 @@ class ResDF(pd.DataFrame):
 
         for k, kept in self._filters['kept'].items():
             if kept:
-                table_name[k] = '+' + '+'.join(map(str, kept))
+                table_name[k] = '+'.join(map(str, kept))
             removed = self._filters['removed'].get(k)
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
@@ -153,14 +179,15 @@ class ResDF(pd.DataFrame):
     @inplaceable
     def reset_index(self, *a, **kw):
 
-        return super().reset_index(*a, **kw)
+        super().reset_index(*a, **kw)
 
     @inplaceable
     def drop(self, labels=None, **kw):
         if kw.get('axis', 0) in (1, 'columns'):
             return super().drop(labels, **kw)
         self._fullindex_frame.drop(labels, **kw)
-        return super().drop(labels, **kw)
+        super().drop(labels, **kw)
+        self._meaningfull_index = list(self.index.names)
 
     def unstack(self, *a, **kw):
         d = super().unstack(*a, **kw)
@@ -245,21 +272,34 @@ class ResDF(pd.DataFrame):
 
         return df.agg(**kw['agg'])
 
-    def agg(self, op='max', column=None, **kw):
+    def agg(self, op='max', columns=[], **kw):
 
-        if op != 'max':
-            raise NotImplementedError
+        if isinstance(op, str):
+            op = [op] * len(columns)
 
-        if column is None:
-            return self
+        if len(op) == 1:
+            op = [op[0]] * len(columns)
 
-        index_names = list(self.index.names)[:-1]
+        agg_df = self
 
-        idx = self[column].groupby(index_names, dropna=False).idxmax()
+        for o, column in zip(op, columns):
 
-        agg_df = self.loc[idx.dropna()]
+            if o not in ('min', 'max'):
+                raise NotImplementedError
 
-        agg_df._filters['agg'] = {op: column}
+            index_names = agg_df.meaningfull_index
+
+            index_names, last_index = index_names[:-1], index_names[-1]
+
+            if o == 'max':
+                idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
+            elif o == 'min':
+                idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
+
+            agg_df = agg_df.loc[idx.dropna()]
+
+            agg_df._filters['agg'].update({o: '{}:{}'.format(last_index, column)})
+
         return agg_df
 
     def filter_index(self, key, *values, action='keep', inplace=True, **kw):
@@ -365,7 +405,7 @@ class ResDF(pd.DataFrame):
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))
             raise ValueError
 
-        if len(self) == 0:
+        if not (len(self) and len(self.columns)):
             logger.error('Empty table, no metrics available')
             raise ValueError
 
