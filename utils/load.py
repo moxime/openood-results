@@ -273,6 +273,7 @@ def concatenate_df(*dfs, index_fill_values={}, **kw):
 
     for _ in index_dict:
         index_dict[_] = np.exp(index_dict[_]).mean()
+
     sorted_index = sorted(index_dict, key=index_dict.get)
 
     df_ = []

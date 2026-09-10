@@ -106,7 +106,7 @@ class ResDF(pd.DataFrame):
     @property
     def meaningfull_index(self):
 
-        while self._meaningfull_index:
+        while len(self._meaningfull_index) > 1:
             agg_df = self.groupby(self._meaningfull_index[:-1]).count()
             if not (agg_df == 1).all().all():
                 break
@@ -403,6 +403,7 @@ class ResDF(pd.DataFrame):
 
         if len(self) > max_length:
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))
+            logger.error('Table index: {}'.format(' '.join(self.index.names)))
             raise ValueError
 
         if not (len(self) and len(self.columns)):

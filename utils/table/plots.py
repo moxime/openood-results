@@ -20,18 +20,15 @@ class AxisArray:
 
         self.max_figs = max_figs
 
-    def new_fig(self, **kw):
+    def new_fig(self, nrows=1, ncols=1, nsubplots=None, suptitle=None, **kw):
 
-        self._last_figkw = kw.copy()
-        suptitle = kw.pop('suptitle', None)
+        self._last_figkw = dict(**kw, nrows=nrows, ncols=ncols, nsubplots=nsubplots, suptitle=suptitle)
 
-        n_subplots = kw.pop('n_subplots', None)
+        if nsubplots:
+            nrows = min(2, nsubplots // 3 + bool(nsubplots % 3))
+            ncols = min(nsubplots, 3)
 
-        if n_subplots:
-            kw.update(dict(nrows=min(2, n_subplots // 3 + 1),
-                           ncols=min(n_subplots, 3)))
-
-        fig, axis = plt.subplots(squeeze=False, **kw)
+        fig, axis = plt.subplots(squeeze=False, nrows=nrows, ncols=ncols, **kw)
 
         if suptitle:
             fig.suptitle(suptitle)
@@ -95,14 +92,9 @@ def plot_scores(df, plot=True, plots=[], max_figs=20, wait=True, **kw):
             except NoPlotError:
                 pass
 
-        for x_y in plots:
+        for y in plots:
             try:
-                x, y = x_y.split(':')
-            except ValueError:
-                logger.error('Can not plot {}'.format(x_y))
-                continue
-            try:
-                plot_x(df, x=x, column=y, axes=axes, **kw)
+                plot_x(df, *y.split('-'), axes=axes, **kw)
             except NoPlotError:
                 pass
 
@@ -143,53 +135,42 @@ def plot_boxplots(df, max_plots=3, **kw):
 def split_by_column_levels(df, n=1):
 
     keys = df.columns.droplevel(list(range(n, df.columns.nlevels))).unique()
+    col_names = df.columns.droplevel(list(range(n, df.columns.nlevels))).names
 
-    return {'-'.join(map(str, key)): df.xs(key, axis=1, level=list(range(n)))
+    if not isinstance(keys, pd.MultiIndex):
+        keys = [(k,) for k in keys]
+
+    key_names = {k: '-'.join('{}:{}'.format(c, n) for c, n in zip(col_names, k)) for k in keys}
+
+    return {key_names[key]: df.xs(key, axis=1, level=list(range(n)))
             for key in keys}
 
 
-def plot_x(df, x=None, column='auc',
+def plot_x(df, *columns,
            split_levels=0,
            axes=None,  subdir='plots', **kw):
 
-    name, result_directory = '{}:{}--{}'.format(x, column, df.name), df.result_directory
+    for column in columns:
+        if column not in df:
+            logger.error('{} is not in table columns'.format(column))
+            raise NoPlotError
 
-    if not x:
-        raise NoPlotError
+    x = df.meaningfull_index[-1]
 
-    if column not in df:
-        logger.error('{} is not in table columns'.format(column))
-        raise NoPlotError
+    name, result_directory = '{}:{}--{}'.format(x, '-'.join(columns), df.name), df.result_directory
 
-    if x not in df.index.names:
-        logger.error('{} is not in table index, try to add it with --table.show {}'.format(x, x))
-        raise NoPlotError
-
-    idx = list(df.index.names)
-
-    while x != idx[-1]:
-        idx.pop(-1)
-
-    gb = df.groupby(idx, dropna=False)[column]
-    df_count = gb.count()
-
-    if not (df_count == 1).all():
-        logger.error('Change table index order such that there is only one entry per {}'.format(x))
-        raise NoPlotError
-
+    gb = df.groupby(df.meaningfull_index, dropna=False)[list(columns)]
     df = gb.mean()
 
-    if not isinstance(df.index, pd.MultiIndex):
-        df.index = pd.MultiIndex.from_product((df.index, ['']), names=(x, ''))
-
-    df = df.unstack(x).T
+    if isinstance(df.index, pd.MultiIndex):
+        df = df.unstack(df.index.names[:-1])
 
     if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.map(lambda col: '-'.join(map(str, col)))
+        df.columns = df.columns.reorder_levels([*df.columns.names[1:], df.columns.names[0]])
 
-    (result_directory / subdir).mkdir(exist_ok=True)
-    csv_file = (result_directory / subdir / name).with_suffix('.csv')
-    df.to_csv(csv_file)
+    # (result_directory / subdir).mkdir(exist_ok=True)
+    # csv_file = (result_directory / subdir / name).with_suffix('.csv')
+    # df.to_csv(csv_file)
 
     axes = axes or AxisArray()
 
@@ -198,10 +179,9 @@ def plot_x(df, x=None, column='auc',
     else:
         dfs = {'': df}
 
-    n_subplots = len(dfs)
-    axes.new_fig(nrows=1, ncols=1, suptitle='{}:{}'.format(x, column))
-
-    df.plot(ax=next(axes), xlabel=x, ylabel=column)
+    axes.new_fig(nsubplots=len(dfs), suptitle='{}:{}'.format(x, '-'.join(columns)))
+    for t, df in dfs.items():
+        df.plot(ax=next(axes), xlabel=x, title=t)
     logger.debug('Plotting metrics for x={}'.format(x))
 
 
