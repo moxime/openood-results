@@ -11,29 +11,37 @@ import pandas as pd
 from functools import partialmethod
 
 try:
-    config_root = Path(__file__).parent.parent / 'configs'
+    default_config_root = Path(__file__).parent.parent / 'configs'
 except NameError:
-    config_root = Path('configs')
-
-KEYS_YML = config_root / 'config_keys.yml'
-CSV_YML = config_root / 'table.yml'
-MAIN_YML = config_root / 'main.yml'
+    default_config_root = Path('configs')
 
 
 logger = logging.getLogger(__name__)
 
 
+class NoneArgType:
+
+    def __repr__(self):
+        return 'NoneArg'
+
+
+NoneArg = NoneArgType()
+
+
 class ConfigDict(dict):
 
-    def __init__(self, /, *a, **kw):
+    def __init__(self, /, *a, config_root=None, **kw):
 
         super().__init__()
 
-        if '_registering_default' not in kw:
-            for yml_file in (MAIN_YML, CSV_YML, KEYS_YML):
-                self._update(0, **yaml.load(open(yml_file), Loader=yaml.SafeLoader))
+        if config_root == 'default':
+            config_root = default_config_root
+        try:
+            config_files = Path(config_root).glob('*.yml')
+        except TypeError:
+            config_files = []
 
-        self.update(*a, **kw)
+        self.update(*config_files, *a, **kw)
 
     def __repr__(self, prefix='', indent=2):
 
@@ -47,7 +55,7 @@ class ConfigDict(dict):
         return '\n'.join(r)
 
     def shallowupdate(self, /, *a, **kw):
-        self._update(1, *a, **kw)
+        self._update(0, *a, **kw)
 
     def update(self, /, *a, **kw):
         self._update(-1, *a, **kw)
@@ -57,7 +65,7 @@ class ConfigDict(dict):
             return self.__getitem__(a)
         return super().__getattribute__(a)
 
-    def _update_with_dotkeys(self, **kw):
+    def _update_with_dotkeys(self, /, **kw):
 
         for k, v in kw.items():
             k_ = k.split('.')
@@ -66,36 +74,31 @@ class ConfigDict(dict):
                 continue
             self[k_[0]]._update_with_dotkeys(**{'.'.join(k_[1:]): v})
 
-    def _update(self, /, depth, *a, _registering_default=False, **kw):
+    def _update(self, /, depth, *a, **kw):
 
-        if a:
-            assert len(a) == 1 and isinstance(a[0], (Namespace, dict)), '{},{}'.format(depth, a)
+        for arg in a:
+            if isinstance(arg, dict):
+                self._update(depth, **arg)
+                continue
+            if isinstance(arg, Namespace):
+                self._update_with_dotkeys(**arg.__dict__)
+                continue
+            if isinstance(arg, (Path, str)) and Path(arg).suffix == '.yml':
+                self._update(depth, **yaml.load(open(arg), Loader=yaml.SafeLoader))
+                continue
+            raise TypeError('Can not update config with {}'.format(type(arg)))
 
-            if isinstance(a[0], dict):
-                return self._update(depth, _registering_default=_registering_default, **a[0])
-            # a[0] is args
-            return self._update_with_dotkeys(__regiistering_defaults=_registering_default,
-                                             **a[0].__dict__)
         for k, v in kw.items():
 
             if isinstance(v, dict):
-                v['_registering_default'] = False
-                if depth == 1 or k not in self:
+                if not depth or k not in self:
                     super().update({k: type(self)(**v)})
                 else:
                     self[k]._update(depth-1, **v)
                 continue
 
-            try:
-                path = Path(v).resolve(strict=True)
-                is_yml = path.suffix == '.yml'
-            except (FileNotFoundError, TypeError):
-                is_yml = False
-            if is_yml:
-                with open(path) as f:
-                    self._update(depth-1, **{k: yaml.load(f, Loader=yaml.SafeLoader)})
-                continue
-            super().update({k: v})
+            if v is not NoneArg:
+                super().update({k: v})
 
     def create_parser(self, parser=None, prefix=[], exclude=None, aliases=None):
 
@@ -108,10 +111,10 @@ class ConfigDict(dict):
                     pass
 
         if aliases is None:
-            aliases = self['args']['aliases']
+            aliases = self.get('args', {}).get('aliases', {})
 
         if exclude is None:
-            exclude = self['args']['exclude']
+            exclude = self.get('args', {}).get('exclude', {})
 
         if not parser:
             parser = argparse.ArgumentParser()
@@ -135,13 +138,13 @@ class ConfigDict(dict):
             logger.debug('{} ({})'.format(','.join(args), type(v)))
 
             if isinstance(v, bool):
-                parser.add_argument(*args, action='store_true', default=v)
+                parser.add_argument(*args, action='store_true', default=NoneArg)
                 if arg_name_neg in aliases:
                     arg_alias = aliases[arg_name_neg]
                     if not isinstance(arg_alias, list):
                         arg_alias = [arg_alias]
                 args = ['--{}'.format(arg_name_neg), *arg_alias]
-                parser.add_argument(*args, action='store_false', dest=arg_name, default=v)
+                parser.add_argument(*args, action='store_false', dest=arg_name, default=NoneArg)
                 continue
 
             if isinstance(v, list):
@@ -152,34 +155,31 @@ class ConfigDict(dict):
                 argtype = generic_type if v is None else type(v)
                 nargs = None
                 extend_arg = None
-            parser.add_argument(*args, type=argtype, nargs=nargs, default=v, metavar=k.upper())
+            parser.add_argument(*args, type=argtype, nargs=nargs, default=NoneArg, metavar=k.upper())
             if extend_arg:
                 parser.add_argument(extend_arg, dest=arg_name, type=argtype, nargs='*', action='extend')
 
         return parser
 
-    def setup(self):
+    def parse_args(self, argv=None, **kw):
 
-        pass
-        # # time is in s from epoch, convert to ascii localtime
-        # fmt = {'time': lambda x: time.asctime(time.localtime(x))}
+        parser = self.create_parser(**kw)
+        args, unknown_args = parser.parse_known_args(argv)
+        self.update(args)
 
-        # index_types = self.pop('index_types', {})
-        # formatters = {_: fmt[index_types[_]] for _ in index_types}
-
-        # print(formatters)
-        # pd.DataFrame.to_string = partialmethod(pd.DataFrame.to_string, formatters=formatters)
+        return unknown_args
 
 
 if __name__ == '__main__':
-    c = ConfigDict()
+
+    c = ConfigDict(config_root='configs')
     from .logger import set_loggers
 
-    parser = c.create_parser(exclude=['config_keys'])
+    parser = c.create_parser()
 
     args = parser.parse_args()
 
     c.update(args)
     # set_loggers(**c.logger)
 
-    print(parser)
+    print(c)

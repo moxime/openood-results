@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from .logger import logger
-from utils.scores import has_scores, get_scores
+from ..scores import has_scores, get_scores
 
 
 class NoPlotError(ValueError):

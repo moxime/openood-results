@@ -45,6 +45,8 @@ def set_loggers(logger_root=__package__, **levels):
     for name, l in logging.Logger.manager.loggerDict.items():
         if name.startswith(__package__):
             name = name[len(__package__) + 1:]
+        if name not in levels:
+            continue
         if isinstance(l, logging.Logger):
             # print('***', __package__, name, levels.get(name))
             level = get_level(name, **levels) or default_level
