@@ -6,6 +6,7 @@ import sys
 import time
 
 from .logger import logger
+from ..configdict import ConfigDict
 
 
 def inplaceable(func):
@@ -145,14 +146,13 @@ class ResDF(pd.DataFrame):
         def __setitem__(self, *a, **kw):
             return self.locator.__setitem__(*a, **kw)
 
-    @property
-    def name(self):
+    def name(self, agg={}, filters={}, **kw):
         table_name = {}
 
-        for k, kept in self._filters['kept'].items():
+        for k, kept in filters.get('keep', {}).items():
             if kept:
                 table_name[k] = '+'.join(map(str, kept))
-            removed = self._filters['removed'].get(k)
+            removed = filters.get('removed', {}).get(k)
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
@@ -302,7 +302,7 @@ class ResDF(pd.DataFrame):
 
         return agg_df
 
-    def filter_index(self, key, *values, action='keep', inplace=True, **kw):
+    def _filter_index_by_key(self, key, *values, action='keep', inplace=True, **kw):
 
         if action in ('rm', 'remove'):
             action = 'remove'
@@ -317,7 +317,12 @@ class ResDF(pd.DataFrame):
 
         return self.drop(self.index[self.index.isin(values, level=key)], inplace=inplace)
 
-    def get_parsers(self, **kw):
+    def _get_parsers(self, **kw):
+        """return two parsers for each index of df multliindex (one
+        for keep, one for rmove)
+
+        """
+
         keep_parser = argparse.ArgumentParser()
         rm_parser = argparse.ArgumentParser()
         for name in self.index.names:
@@ -341,31 +346,39 @@ class ResDF(pd.DataFrame):
         rm_parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
         return keep_parser, rm_parser
 
-    def parse_args(self, argv, **kw):
-
-        keep_parser, rm_parser = self.get_parsers()
+    def _parse_args(self, argv, filters={}, **kw):
+        """
+        update filters with filter args from argv, return unknown args
+        """
+        keep_parser, rm_parser = self._get_parsers()
         keep_args, unknown_args = keep_parser.parse_known_args(argv)
         rm_args, unknown_args = rm_parser.parse_known_args(unknown_args)
-        return vars(keep_args), vars(rm_args), unknown_args
+        filters.update(keep=vars(keep_args), remove=vars(rm_args))
+        return unknown_args
 
-    def filter_parse_args(self, argv=None, **kw):
-
-        t0 = time.time()
-        kept_values, removed_values, unknown_args = self.parse_args(argv)
-
-        self._filters.update(kept=kept_values, removed=removed_values)
-
-        for k, kept in kept_values.items():
-            removed = removed_values[k]
+    def filter(self, keep={}, remove={}, **kw):
+        for k, kept in keep.items():
+            removed = remove.get(k)
             df_len = len(self)
             values_before = set(self.index.get_level_values(k))
             if kept is not None:
-                self.filter_index(k, *kept)
+                self._filter_index_by_key(k, *kept)
             if removed is not None:
-                self.filter_index(k, *removed, action='remove')
+                self._filter_index_by_key(k, *removed, action='remove')
             values = set(self.index.get_level_values(k))
             logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
                                                          kept if len(values) < len(values_before) else ''))
+
+    def filter_parse_args(self, argv=None, filters={}, **kw):
+
+        t0 = time.time()
+        unknown_args = self._parse_args(argv, filters=filters, **kw)
+        kept_values = filters.get('keep', {})
+        removed_values = filters.get('remove', {})
+
+        self._filters.update(kept=kept_values, removed=removed_values)
+
+        self.filter(**filters)
         if removed_values['last']:
             self.reorder_index_levels(index_order=['date', 'job'])
             self.drop(self.index[:- --removed_values['last']], inplace=True)
@@ -393,7 +406,7 @@ class ResDF(pd.DataFrame):
 
         columns = columns or self.columns
 
-        name = name or self.name
+        name = name or self.name(**kw)
 
         removed_cols = [_ for _ in self.columns if _ not in columns]
         self.drop(removed_cols, axis='columns', inplace=True)

@@ -54,6 +54,12 @@ class ConfigDict(dict):
                 r.append('{}{}: {}'.format(prefix, k, str(v)))
         return '\n'.join(r)
 
+    def copy(self):
+
+        config = type(self)()
+        config.update(self)
+        return config
+
     def shallowupdate(self, /, *a, **kw):
         self._update(0, *a, **kw)
 
@@ -155,7 +161,7 @@ class ConfigDict(dict):
                 argtype = generic_type if v is None else type(v)
                 nargs = None
                 extend_arg = None
-            parser.add_argument(*args, type=argtype, nargs=nargs, default=NoneArg, metavar=k.upper())
+            parser.add_argument(*args, type=argtype, nargs=nargs, default=v, metavar=k.upper())
             if extend_arg:
                 parser.add_argument(extend_arg, dest=arg_name, type=argtype, nargs='*', action='extend')
 

@@ -62,6 +62,9 @@ table:
     op: [max]
     columns: []
 
+  filters:
+    __placeholder__:
+      
   name:
 
   plot:

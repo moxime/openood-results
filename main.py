@@ -22,14 +22,9 @@ def main():
     from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
     import pandas as pd
 
-    config = ConfigDict()
+    config = ConfigDict(config_root='default')
 
-    parser = config.create_parser()
-
-    args, filter_args = parser.parse_known_args()
-
-    config.update(args)
-    config.setup()
+    filter_args = config.parse_args()
 
     set_loggers(**config.logger)
 
