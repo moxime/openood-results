@@ -44,6 +44,7 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
     df.set_index(list(index_labels), inplace=True, append=False)
 
     scores_dict = score_paths(path.parent)
+    df['SCORES'] = pd.NA
     for i, s in scores_dict.items():
         df.loc[i, 'SCORES'] = s
 
