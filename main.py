@@ -17,10 +17,8 @@ if __name__ == "__main__" and __package__ is None:
 
 
 def main():
-    import sys
-    import argparse
-    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
     import pandas as pd
+    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
 
     config = ConfigDict(config_root='default')
 
@@ -46,7 +44,24 @@ def main():
 
     compute_scores_stats(df, **config.scores)
 
-    df = df.drop_levels(**config.table)
+    if config.from_file:
+        df_ = {}
+        subconfigs = ConfigDict(config.from_file)
+
+        for name in subconfigs.concat:
+            subconfig = config.copy()
+            subconfig.table.update(**subconfigs[name])
+            subdf = df.copy()
+            subdf.filter(**subconfig.table.filters)
+            subdf = subdf.drop_levels(**subconfig.table)
+            df_[name] = subdf
+            logger.info('Built table {} of len {}'.format(name, len(subdf)))
+
+        configupdate = subconfigs.get('full') or {}
+        config.table.update(configupdate)
+        df = df.concat(df_.values(), **config.table)
+    else:
+        df = df.drop_levels(**config.table)
 
     try:
         df.print(**config.table)

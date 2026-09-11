@@ -86,13 +86,16 @@ class ResDF(pd.DataFrame):
         self._meaningfull_index = None
         self._meaningfull_index = list(self.index.names)
 
+    def _attrfrom(self, df):
+        self._dropped_index = df._dropped_index.copy()
+        self._fullindex_frame = df._fullindex_frame.copy()
+
+        self.result_directory = self.result_directory
+
     def copy(self, **kw):
 
         df = type(self)(super().copy(**kw))
-        df._dropped_index = self._dropped_index.copy()
-        df._fullindex_frame = self._fullindex_frame.copy(**kw)
-
-        df.result_directory = self.result_directory
+        df._attrfrom(self)
 
         return df
 
@@ -151,8 +154,6 @@ class ResDF(pd.DataFrame):
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
-        print(agg)
-
         for op in [dict(zip(agg, t)) for t in zip(*agg.values())]:
             table_name.update({op['indices']: '{}:{}'.format(op['op'], op['columns'])})
 
@@ -188,8 +189,10 @@ class ResDF(pd.DataFrame):
         self._meaningfull_index = list(self.index.names)
 
     def unstack(self, *a, **kw):
-        d = super().unstack(*a, **kw)
-        return type(self)(d)
+        d = type(self)(super().unstack(*a, **kw))
+        d._attrfrom(self)
+
+        return d
 
     @property
     def fullindex(self):
@@ -269,9 +272,9 @@ class ResDF(pd.DataFrame):
         df.drop(df.columns[df.isnull().all(axis=0)], axis=1,  inplace=True)
 
         kw['agg'].update(indices=[])
-        return df.agg(**kw['agg'])
+        return df.op(**kw['agg'])
 
-    def agg(self, op=['max'], columns=[], indices=[], **kw):
+    def op(self, op=['max'], columns=[], indices=[], **kw):
 
         if len(op) == 1:
             op.extend([op[0]] * len(columns[:-1]))
@@ -280,21 +283,22 @@ class ResDF(pd.DataFrame):
 
         for o, column in zip(op, columns):
 
-            if o not in ('min', 'max'):
+            if o not in ('min', 'max', 'unstack'):
                 raise NotImplementedError
 
-            index_names = agg_df.meaningfull_index
+            if o in ('min', 'max'):
+                index_names = agg_df.meaningfull_index
+                index_names, last_index = index_names[:-1], index_names[-1]
 
-            index_names, last_index = index_names[:-1], index_names[-1]
+                logger.info('Agg table: {} of {} wrt {}'.format(o, column, last_index))
+                indices.append(last_index)
 
-            indices.append(last_index)
+                if o == 'max':
+                    idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
+                elif o == 'min':
+                    idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
 
-            if o == 'max':
-                idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
-            elif o == 'min':
-                idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
-
-            agg_df = agg_df.loc[idx.dropna()]
+                agg_df = agg_df.loc[idx.dropna()]
 
         return agg_df
 
@@ -383,6 +387,19 @@ class ResDF(pd.DataFrame):
         self.reorder_index_levels(**kw)
 
         return unknown_args
+
+    @classmethod
+    def concat(cls, dfs, **kw):
+
+        dfs = [_.copy() for _ in dfs]
+        for df in dfs:
+            df.index = df.fullindex
+
+        df = cls(pd.concat(dfs))
+
+        df.result_directory = dfs[0].result_directory
+
+        return df.drop_levels(**kw)
 
     def print(self,
               columns=None,

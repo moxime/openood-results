@@ -1,4 +1,4 @@
-from_files: []
+from_file:
 
 logger:
   __default__: warning
@@ -48,9 +48,7 @@ args:
     - table.index_dependencies
     - load.index_fill_values
     - load.csv_index
-    - from_files
-
-
+    - table.filters
 
 scores:
   compute: True
