@@ -106,7 +106,7 @@ class ConfigDict(dict):
             if v is not NoneArg:
                 super().update({k: v})
 
-    def create_parser(self, parser=None, prefix=[], exclude=None, aliases=None):
+    def _create_parser(self, parser=None, prefix=[], exclude=None, aliases=None):
 
         def generic_type(v):
 
@@ -132,7 +132,7 @@ class ConfigDict(dict):
                 continue
 
             if isinstance(v, type(self)):
-                v.create_parser(parser=parser, prefix=prefix + [k], exclude=exclude, aliases=aliases)
+                v._create_parser(parser=parser, prefix=prefix + [k], exclude=exclude, aliases=aliases)
                 continue
 
             arg_alias = []
@@ -169,7 +169,7 @@ class ConfigDict(dict):
 
     def parse_args(self, argv=None, **kw):
 
-        parser = self.create_parser(**kw)
+        parser = self._create_parser(**kw)
         args, unknown_args = parser.parse_known_args(argv)
         self.update(args)
 
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     c = ConfigDict(config_root='configs')
     from .logger import set_loggers
 
-    parser = c.create_parser()
+    parser = c._create_parser()
 
     args = parser.parse_args()
 

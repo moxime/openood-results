@@ -83,9 +83,6 @@ class ResDF(pd.DataFrame):
         self._fullindex_frame = self.index.to_frame()
         self._fullindex_frame.index = self.index
 
-        self._filters = None
-        self._filters = dict(kept={}, removed={}, agg={})
-
         self._meaningfull_index = None
         self._meaningfull_index = list(self.index.names)
 
@@ -96,7 +93,6 @@ class ResDF(pd.DataFrame):
         df._fullindex_frame = self._fullindex_frame.copy(**kw)
 
         df.result_directory = self.result_directory
-        df._filters = self._filters.copy()
 
         return df
 
@@ -127,7 +123,6 @@ class ResDF(pd.DataFrame):
             self.fullindex_frame = df._fullindex_frame
             self.fullindex_frame_locator = fullindex_locator
             self._result_directory = df.result_directory
-            self._filters = df._filters.copy()
 
         def __getitem__(self, *vargs, **kwargs):
             df_raw = self.locator.__getitem__(*vargs, **kwargs)
@@ -137,7 +132,6 @@ class ResDF(pd.DataFrame):
             df._dropped_index = self.dropped_index.copy()
             df._fullindex_frame = self.fullindex_frame_locator.__getitem__(*vargs, **kwargs)
             df.result_directory = self._result_directory
-            df._filters = self._filters
             return df
 
         def _getitem_axis(self, *a, **kw):
@@ -147,6 +141,7 @@ class ResDF(pd.DataFrame):
             return self.locator.__setitem__(*a, **kw)
 
     def name(self, agg={}, filters={}, **kw):
+
         table_name = {}
 
         for k, kept in filters.get('keep', {}).items():
@@ -156,7 +151,10 @@ class ResDF(pd.DataFrame):
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
-        table_name.update(self._filters['agg'])
+        print(agg)
+
+        for op in [dict(zip(agg, t)) for t in zip(*agg.values())]:
+            table_name.update({op['indices']: '{}:{}'.format(op['op'], op['columns'])})
 
         return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items())
 
@@ -270,15 +268,13 @@ class ResDF(pd.DataFrame):
         df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
         df.drop(df.columns[df.isnull().all(axis=0)], axis=1,  inplace=True)
 
+        kw['agg'].update(indices=[])
         return df.agg(**kw['agg'])
 
-    def agg(self, op='max', columns=[], **kw):
-
-        if isinstance(op, str):
-            op = [op] * len(columns)
+    def agg(self, op=['max'], columns=[], indices=[], **kw):
 
         if len(op) == 1:
-            op = [op[0]] * len(columns)
+            op.extend([op[0]] * len(columns[:-1]))
 
         agg_df = self
 
@@ -291,14 +287,14 @@ class ResDF(pd.DataFrame):
 
             index_names, last_index = index_names[:-1], index_names[-1]
 
+            indices.append(last_index)
+
             if o == 'max':
                 idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
             elif o == 'min':
                 idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
 
             agg_df = agg_df.loc[idx.dropna()]
-
-            agg_df._filters['agg'].update({o: '{}:{}'.format(last_index, column)})
 
         return agg_df
 
@@ -317,7 +313,7 @@ class ResDF(pd.DataFrame):
 
         return self.drop(self.index[self.index.isin(values, level=key)], inplace=inplace)
 
-    def _get_parsers(self, **kw):
+    def _create_parsers(self, **kw):
         """return two parsers for each index of df multliindex (one
         for keep, one for rmove)
 
@@ -350,10 +346,11 @@ class ResDF(pd.DataFrame):
         """
         update filters with filter args from argv, return unknown args
         """
-        keep_parser, rm_parser = self._get_parsers()
+        keep_parser, rm_parser = self._create_parsers()
         keep_args, unknown_args = keep_parser.parse_known_args(argv)
         rm_args, unknown_args = rm_parser.parse_known_args(unknown_args)
-        filters.update(keep=vars(keep_args), remove=vars(rm_args))
+        filters.update(keep={k: v for k, v in vars(keep_args).items() if v is not None},
+                       remove={k: v for k, v in vars(rm_args).items() if v is not None})
         return unknown_args
 
     def filter(self, keep={}, remove={}, **kw):
@@ -373,17 +370,16 @@ class ResDF(pd.DataFrame):
 
         t0 = time.time()
         unknown_args = self._parse_args(argv, filters=filters, **kw)
-        kept_values = filters.get('keep', {})
-        removed_values = filters.get('remove', {})
-
-        self._filters.update(kept=kept_values, removed=removed_values)
+        last = filters.get('remove', {}).pop('last', None)
 
         self.filter(**filters)
-        if removed_values['last']:
+
+        if last:
             self.reorder_index_levels(index_order=['date', 'job'])
-            self.drop(self.index[:- --removed_values['last']], inplace=True)
+            self.drop(self.index[:-last], inplace=True)
 
         logger.info('Filtered table of length {} in {:.1f}s'.format(len(self), time.time() - t0))
+
         self.reorder_index_levels(**kw)
 
         return unknown_args
@@ -393,7 +389,7 @@ class ResDF(pd.DataFrame):
               show_dropped=True,
               list_values=None, max_length=200,
               na_rep='--',
-              float_format='{:.2f}'.format,
+              float_format='{:.3g}'.format,
               name=None,
               subdir='tables',
               **kw):
@@ -492,7 +488,7 @@ if __name__ == '__main__':
 
     config = ConfigDict()
 
-    parser = config.create_parser()
+    parser = config._create_parser()
 
     args, filter_args = parser.parse_known_args(argv)
 

@@ -16,7 +16,7 @@ table:
   show_dropped: True
   index_order: [set, net, ..., ood, phase, epoch, date, job]
   list_values:
-  float_format: '{:.1f}'
+  float_format: '{:.3g}'
 
   max_length: 200
     
