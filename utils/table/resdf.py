@@ -90,7 +90,7 @@ class ResDF(pd.DataFrame):
         self._dropped_index = df._dropped_index.copy()
         self._fullindex_frame = df._fullindex_frame.copy()
 
-        self.result_directory = self.result_directory
+        self.result_directory = df.result_directory
 
     def copy(self, **kw):
 
@@ -143,7 +143,7 @@ class ResDF(pd.DataFrame):
         def __setitem__(self, *a, **kw):
             return self.locator.__setitem__(*a, **kw)
 
-    def name(self, agg={}, filters={}, **kw):
+    def name(self, ops={}, filters={}, **kw):
 
         table_name = {}
 
@@ -154,7 +154,7 @@ class ResDF(pd.DataFrame):
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
-        for op in [dict(zip(agg, t)) for t in zip(*agg.values())]:
+        for op in [dict(zip(ops, t)) for t in zip(*ops.values())]:
             table_name.update({op['indices']: '{}:{}'.format(op['op'], op['columns'])})
 
         return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items())
@@ -271,8 +271,8 @@ class ResDF(pd.DataFrame):
         df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
         df.drop(df.columns[df.isnull().all(axis=0)], axis=1,  inplace=True)
 
-        kw['agg'].update(indices=[])
-        return df.op(**kw['agg'])
+        kw['ops'].update(indices=[])
+        return df.op(**kw['ops'])
 
     def op(self, op=['max'], columns=[], indices=[], **kw):
 
@@ -281,7 +281,7 @@ class ResDF(pd.DataFrame):
 
         agg_df = self
 
-        for o, column in zip(op, columns):
+        for i, (o, column) in enumerate(zip(op, columns)):
 
             if o not in ('min', 'max', 'unstack'):
                 raise NotImplementedError
@@ -300,6 +300,12 @@ class ResDF(pd.DataFrame):
 
                 agg_df = agg_df.loc[idx.dropna()]
 
+            if o == 'unstack':
+                agg_df = agg_df.unstack(column)
+                indices.append(column)
+                columns[i] = 'on'
+                agg_df.columns = ['-'.join(map(str, _)) for _ in agg_df.columns]
+                
         return agg_df
 
     def _filter_index_by_key(self, key, *values, action='keep', inplace=True, **kw):
@@ -432,8 +438,12 @@ class ResDF(pd.DataFrame):
             logger.error('Table index: {}'.format(' '.join(self.index.names)))
             raise ValueError
 
-        if not (len(self) and len(self.columns)):
-            logger.error('Empty table, no metrics available')
+        if not len(self):
+            logger.error('Empty table (no index')
+            raise ValueError
+
+        if not len(self.columns):
+            logger.error('Empty table (no column)')
             raise ValueError
 
         if list_values:

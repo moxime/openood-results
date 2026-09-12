@@ -58,7 +58,7 @@ table:
     - ood_std
     - fisher
 
-  agg:
+  ops:
     op: [max]
     columns: []
 
