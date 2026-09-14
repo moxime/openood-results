@@ -55,6 +55,7 @@ def main():
             subdf.filter(**subconfig.table.filters)
             subdf = subdf.drop_levels(**subconfig.table)
             df_[name] = subdf
+
             logger.info('Built table {} of len {}'.format(name, len(subdf)))
 
         configupdate = subconfigs.get('full') or {}

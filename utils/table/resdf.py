@@ -107,8 +107,8 @@ class ResDF(pd.DataFrame):
     def meaningfull_index(self):
 
         while len(self._meaningfull_index) > 1:
-            agg_df = self.groupby(self._meaningfull_index[:-1]).count()
-            if not (agg_df == 1).all().all():
+            agg_df = self.groupby(self._meaningfull_index[:-1], dropna=False).count()
+            if not (agg_df <= 1).all().all():
                 break
             self._meaningfull_index.pop(-1)
 
@@ -143,7 +143,7 @@ class ResDF(pd.DataFrame):
         def __setitem__(self, *a, **kw):
             return self.locator.__setitem__(*a, **kw)
 
-    def name(self, ops={}, filters={}, **kw):
+    def name(self, ops=[], filters={}, **kw):
 
         table_name = {}
 
@@ -154,7 +154,7 @@ class ResDF(pd.DataFrame):
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
-        opnames = '--'.join(ops.get('opnames', []))
+        opnames = '--'.join(ops)
 
         if opnames:
             opnames = '--' + opnames
@@ -193,6 +193,14 @@ class ResDF(pd.DataFrame):
     def unstack(self, *a, **kw):
         d = type(self)(super().unstack(*a, **kw))
         d._attrfrom(self)
+
+        fi_f = d._fullindex_frame.unstack(*a).droplevel(1, axis=1).drop(columns=[*a])
+        fi_f = fi_f.loc[:, ~fi_f.apply(lambda x: x.duplicated(), axis=1).all()]
+
+        fi_f.index = d.index
+        d._fullindex_frame = fi_f
+        # print('***')
+        # print(fi_f[list(set(fi_f.columns[fi_f.columns.duplicated()]))])
 
         return d
 
@@ -273,38 +281,37 @@ class ResDF(pd.DataFrame):
         df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
         df.drop(df.columns[df.isnull().all(axis=0)], axis=1,  inplace=True)
 
-        kw['ops'].update(opnames=[])
-        return df.op(**kw['ops'])
+        return df.op(**kw)
 
-    def op(self, op=['max'], columns=[], opnames=[], **kw):
-
-        if len(op) == 1:
-            op.extend([op[0]] * len(columns[:-1]))
+    def op(self, ops=[], **kw):
 
         agg_df = self
 
-        for i, (o, column) in enumerate(zip(op, columns)):
+        for i, op_arg in enumerate(ops):
+            op, args = op_arg.split(':')[0], op_arg.split(':')[1:]
 
-            if o not in ('min', 'max', 'unstack'):
+            if op not in ('min', 'max', 'unstack'):
                 raise NotImplementedError
 
-            if o in ('min', 'max'):
+            if op in ('min', 'max'):
                 index_names = agg_df.meaningfull_index
                 index_names, last_index = index_names[:-1], index_names[-1]
+                column = args[0]
 
-                logger.info('Agg table: {} of {} wrt {}'.format(o, column, last_index))
-                opnames.append('{}:{}:{}'.format(last_index, o, column))
+                logger.info('Agg table: {} of {} wrt {}'.format(op, column, last_index))
 
-                if o == 'max':
+                ops[i] = '{}:'.format(last_index) + ops[i]
+
+                if op == 'max':
                     idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
-                elif o == 'min':
+                elif op == 'min':
                     idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
 
                 agg_df = agg_df.loc[idx.dropna()]
 
-            if o == 'unstack':
+            if op == 'unstack':
+                column = args[0]
                 agg_df = agg_df.unstack(column)
-                opnames.append('{}:{}'.format(o, column))
                 agg_df.columns = ['-'.join(map(str, _)) for _ in agg_df.columns]
                 logger.info('Unstack {}'.format(column))
 
@@ -424,6 +431,9 @@ class ResDF(pd.DataFrame):
             raise ValueError
 
         self = self.copy()
+
+        self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
+        self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
 
         columns = columns or self.columns
 
