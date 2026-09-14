@@ -154,10 +154,12 @@ class ResDF(pd.DataFrame):
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
-        for op in [dict(zip(ops, t)) for t in zip(*ops.values())]:
-            table_name.update({op['indices']: '{}:{}'.format(op['op'], op['columns'])})
+        opnames = '--'.join(ops.get('opnames', []))
 
-        return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items())
+        if opnames:
+            opnames = '--' + opnames
+
+        return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items()) + opnames
 
     @property
     def loc(self):
@@ -271,10 +273,10 @@ class ResDF(pd.DataFrame):
         df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
         df.drop(df.columns[df.isnull().all(axis=0)], axis=1,  inplace=True)
 
-        kw['ops'].update(indices=[])
+        kw['ops'].update(opnames=[])
         return df.op(**kw['ops'])
 
-    def op(self, op=['max'], columns=[], indices=[], **kw):
+    def op(self, op=['max'], columns=[], opnames=[], **kw):
 
         if len(op) == 1:
             op.extend([op[0]] * len(columns[:-1]))
@@ -291,7 +293,7 @@ class ResDF(pd.DataFrame):
                 index_names, last_index = index_names[:-1], index_names[-1]
 
                 logger.info('Agg table: {} of {} wrt {}'.format(o, column, last_index))
-                indices.append(last_index)
+                opnames.append('{}:{}:{}'.format(last_index, o, column))
 
                 if o == 'max':
                     idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
@@ -302,10 +304,10 @@ class ResDF(pd.DataFrame):
 
             if o == 'unstack':
                 agg_df = agg_df.unstack(column)
-                indices.append(column)
-                columns[i] = 'on'
+                opnames.append('{}:{}'.format(o, column))
                 agg_df.columns = ['-'.join(map(str, _)) for _ in agg_df.columns]
-                
+                logger.info('Unstack {}'.format(column))
+
         return agg_df
 
     def _filter_index_by_key(self, key, *values, action='keep', inplace=True, **kw):
