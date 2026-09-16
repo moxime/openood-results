@@ -71,6 +71,11 @@ class ConfigDict(dict):
             return self.__getitem__(a)
         return super().__getattribute__(a)
 
+    def __setattr__(self, k, val):
+        if hasattr(super(), k):
+            return super().__setattr__(k, val)
+        return self.__setitem__(k, val)
+
     def _update_with_dotkeys(self, /, **kw):
 
         for k, v in kw.items():

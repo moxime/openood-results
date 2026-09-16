@@ -504,7 +504,7 @@ class ResDF(pd.DataFrame):
             raise ValueError
 
         (self.result_directory / subdir).mkdir(exist_ok=True)
-        self.to_csv((self.result_directory / subdir / name).with_suffix('.csv'))
+        self.to_csv(self.result_directory / subdir / (name + '.csv'))
 
         if len(self) > max_length:
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))

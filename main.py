@@ -17,6 +17,7 @@ if __name__ == "__main__" and __package__ is None:
 
 
 def main():
+    from pathlib import Path
     import pandas as pd
     from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
 
@@ -47,7 +48,6 @@ def main():
     if config.from_file:
         df_ = {}
         subconfigs = ConfigDict(config.from_file)
-
         for name in subconfigs.concat:
             subconfig = config.copy()
             subconfig.table.update(**subconfigs[name])
@@ -61,6 +61,8 @@ def main():
         configupdate = subconfigs.get('full') or {}
         config.table.update(configupdate)
         df = df.concat(df_.values(), **config.table)
+        config.table.name = (config.table.name or df.name(**config.table))
+        config.table.name += '--{}'.format(Path(config.from_file).stem)
     else:
         df = df.drop_levels(**config.table)
 
