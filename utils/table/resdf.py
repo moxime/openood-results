@@ -1,12 +1,12 @@
-from pathlib import Path
-import argparse
-import numpy as np
-import pandas as pd
-import sys
-import time
-
-from .logger import logger
 from ..configdict import ConfigDict
+from .logger import logger
+import time
+import re
+import sys
+import pandas as pd
+import numpy as np
+import argparse
+from pathlib import Path
 
 
 def inplaceable(func):
@@ -86,13 +86,19 @@ class ResDF(pd.DataFrame):
         self._meaningfull_index = None
         self._meaningfull_index = list(self.index.names)
 
+        if len(self.columns.names) == 1 and not self.columns.name:
+            self.columns.name = 'metrics'
+
+    def _attrfrom(self, df):
+        self._dropped_index = df._dropped_index.copy()
+        self._fullindex_frame = df._fullindex_frame.copy()
+
+        self.result_directory = df.result_directory
+
     def copy(self, **kw):
 
         df = type(self)(super().copy(**kw))
-        df._dropped_index = self._dropped_index.copy()
-        df._fullindex_frame = self._fullindex_frame.copy(**kw)
-
-        df.result_directory = self.result_directory
+        df._attrfrom(self)
 
         return df
 
@@ -104,8 +110,8 @@ class ResDF(pd.DataFrame):
     def meaningfull_index(self):
 
         while len(self._meaningfull_index) > 1:
-            agg_df = self.groupby(self._meaningfull_index[:-1]).count()
-            if not (agg_df == 1).all().all():
+            agg_df = self.groupby(self._meaningfull_index[:-1], dropna=False).count()
+            if not (agg_df <= 1).all().all():
                 break
             self._meaningfull_index.pop(-1)
 
@@ -140,7 +146,7 @@ class ResDF(pd.DataFrame):
         def __setitem__(self, *a, **kw):
             return self.locator.__setitem__(*a, **kw)
 
-    def name(self, agg={}, filters={}, **kw):
+    def name(self, ops=[], filters={}, **kw):
 
         table_name = {}
 
@@ -151,12 +157,12 @@ class ResDF(pd.DataFrame):
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
-        print(agg)
+        opnames = '--'.join(ops)
 
-        for op in [dict(zip(agg, t)) for t in zip(*agg.values())]:
-            table_name.update({op['indices']: '{}:{}'.format(op['op'], op['columns'])})
+        if opnames:
+            opnames = '--' + opnames
 
-        return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items())
+        return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items()) + opnames
 
     @property
     def loc(self):
@@ -187,13 +193,62 @@ class ResDF(pd.DataFrame):
         super().drop(labels, **kw)
         self._meaningfull_index = list(self.index.names)
 
-    def unstack(self, *a, **kw):
-        d = super().unstack(*a, **kw)
-        return type(self)(d)
+    def _flatten_column(self):
+
+        if not isinstance(self.columns, pd.MultiIndex):
+            return
+
+        column_name = '--'.join(self.columns.names)
+        self.columns = ['--'.join(map(str, _)) for _ in self.columns]
+        self.columns.name = column_name
+
+    def _unflatten_column(self):
+        if isinstance(self.columns, pd.MultiIndex):
+            return
+
+        colnames = self.columns.name.split('--')
+        self.columns = pd.MultiIndex.from_tuples([_.split('--') for _ in self.columns])
+        self.columns.names = colnames
+
+    def unstack(self, iname):
+        self._unflatten_column()
+        d = type(self)(super().unstack(iname))
+        d._attrfrom(self)
+
+        d._fullindex_frame = self._fullindex_frame.unstack(iname)
+        self._flatten_column()
+        d._flatten_column()
+
+        return d
+
+    def stack(self, colname):
+
+        self._unflatten_column()
+
+        df = type(self)(super().stack(colname, future_stack=True))
+        df._attrfrom(self)
+
+        df._fullindex_frame = self._fullindex_frame.stack(colname, future_stack=True)
+
+        self._flatten_column()
+        df._flatten_column()
+
+        return df
 
     @property
     def fullindex(self):
-        return pd.MultiIndex.from_frame(self._fullindex_frame)
+
+        i_frame = self._fullindex_frame.copy()
+
+        while i_frame.columns.nlevels > 1:
+            col = i_frame.columns.names[-1]
+            i_frame = i_frame.droplevel(col, axis=1).drop(columns=col)
+            unique = i_frame.columns[~i_frame.apply(lambda x: x.duplicated(keep=False), axis=1).all()]
+            i_frame = i_frame.drop(unique, axis=1)
+            i_frame = i_frame.loc[:, ~i_frame.apply(lambda x: x.duplicated(), axis=1).all()]
+            i_frame[list(set(unique))] = '<>'
+
+        return pd.MultiIndex.from_frame(i_frame)
 
     def reorder_index_levels(self, index_order=['set', '...', 'ood', 'epoch', 'date'],
                              index_dependencies={}, **kw):
@@ -236,13 +291,14 @@ class ResDF(pd.DataFrame):
                     **kw):
 
         df = self.rename(columns=columns_rename)
+        fullindex = self.index.copy()
+        df._fullindex_frame = fullindex.to_frame()
+        df._fullindex_frame.index = df.index
 
         if self._dropped_index:
             logger.warning('index already dropped returing df.copy()')
             return df
         assert not self._dropped_index
-
-        fullindex = self.index.copy()
 
         hidden = set(df.index.names) & (set(hide) | set(exp_index))
 
@@ -260,7 +316,6 @@ class ResDF(pd.DataFrame):
         for _ in df._dropped_index:
             df.index = df.index.droplevel(_)
 
-        df._fullindex_frame = fullindex.to_frame()
         df._fullindex_frame.index = df.index
 
         df.sort_index(inplace=True)
@@ -268,33 +323,43 @@ class ResDF(pd.DataFrame):
         df.drop(df.index[df.isnull().all(axis=1)], axis=0, inplace=True)
         df.drop(df.columns[df.isnull().all(axis=0)], axis=1,  inplace=True)
 
-        kw['agg'].update(indices=[])
-        return df.agg(**kw['agg'])
+        return df.op(**kw)
 
-    def agg(self, op=['max'], columns=[], indices=[], **kw):
-
-        if len(op) == 1:
-            op.extend([op[0]] * len(columns[:-1]))
+    def op(self, ops=[], **kw):
 
         agg_df = self
 
-        for o, column in zip(op, columns):
+        for i, op_arg in enumerate(ops):
+            op, args = op_arg.split(':')[0], op_arg.split(':')[1:]
 
-            if o not in ('min', 'max'):
+            if op not in ('min', 'max', 'unstack', 'stack'):
                 raise NotImplementedError
 
-            index_names = agg_df.meaningfull_index
+            if op in ('min', 'max'):
+                index_names = agg_df.meaningfull_index
+                index_names, last_index = index_names[:-1], index_names[-1]
+                column = args[0]
 
-            index_names, last_index = index_names[:-1], index_names[-1]
+                logger.info('Agg table: {} of {} wrt {}'.format(op, column, last_index))
 
-            indices.append(last_index)
+                ops[i] = '{}:'.format(last_index) + ops[i]
 
-            if o == 'max':
-                idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
-            elif o == 'min':
-                idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
+                if op == 'max':
+                    idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
+                elif op == 'min':
+                    idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
 
-            agg_df = agg_df.loc[idx.dropna()]
+                agg_df = agg_df.loc[idx.dropna()]
+
+            if op == 'unstack':
+                idx = args[0]
+                agg_df = agg_df.unstack(idx)
+                logger.info('Unstack {}'.format(idx))
+
+            if op == 'stack':
+                col = args[0]
+                agg_df = agg_df.stack(col)
+                logger.info('Stack {}'.format(col))
 
         return agg_df
 
@@ -351,10 +416,12 @@ class ResDF(pd.DataFrame):
         rm_args, unknown_args = rm_parser.parse_known_args(unknown_args)
         filters.update(keep={k: v for k, v in vars(keep_args).items() if v is not None},
                        remove={k: v for k, v in vars(rm_args).items() if v is not None})
+
         return unknown_args
 
     def filter(self, keep={}, remove={}, **kw):
-        for k, kept in keep.items():
+        for k in set(keep) | set(remove):
+            kept = keep.get(k)
             removed = remove.get(k)
             df_len = len(self)
             values_before = set(self.index.get_level_values(k))
@@ -372,6 +439,7 @@ class ResDF(pd.DataFrame):
         unknown_args = self._parse_args(argv, filters=filters, **kw)
         last = filters.get('remove', {}).pop('last', None)
 
+        # filters has been updated
         self.filter(**filters)
 
         if last:
@@ -383,6 +451,23 @@ class ResDF(pd.DataFrame):
         self.reorder_index_levels(**kw)
 
         return unknown_args
+
+    @classmethod
+    def concat(cls, dfs, filters={}, **kw):
+
+        dfs = [_.copy() for _ in dfs]
+        for df in dfs:
+            df.index = df.fullindex
+
+        df = cls(pd.concat(dfs))
+
+        df.result_directory = dfs[0].result_directory
+
+        df.filter(**filters)
+        df = df.drop_levels(**kw)
+
+        # df.filter(**filters)
+        return df
 
     def print(self,
               columns=None,
@@ -404,19 +489,26 @@ class ResDF(pd.DataFrame):
 
         name = name or self.name(**kw)
 
-        removed_cols = [_ for _ in self.columns if _ not in columns]
+        removed_cols = [_ for _ in self.columns if not any(re.match(f, _) for f in columns)]
         self.drop(removed_cols, axis='columns', inplace=True)
 
+        self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
+        self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
+
+        if not len(self):
+            logger.error('Empty table (no index')
+            raise ValueError
+
+        if not len(self.columns):
+            logger.error('Empty table (no column)')
+            raise ValueError
+
         (self.result_directory / subdir).mkdir(exist_ok=True)
-        self.to_csv((self.result_directory / subdir / name).with_suffix('.csv'))
+        self.to_csv(self.result_directory / subdir / (name + '.csv'))
 
         if len(self) > max_length:
             logger.error('Table too long ({}>{}) '.format(len(self), max_length))
             logger.error('Table index: {}'.format(' '.join(self.index.names)))
-            raise ValueError
-
-        if not (len(self) and len(self.columns)):
-            logger.error('Empty table, no metrics available')
             raise ValueError
 
         if list_values:

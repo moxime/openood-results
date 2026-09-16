@@ -58,9 +58,7 @@ table:
     - ood_std
     - fisher
 
-  agg:
-    op: [max]
-    columns: []
+  ops: []
 
   filters:
     __placeholder__:
