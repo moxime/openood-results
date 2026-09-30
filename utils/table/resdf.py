@@ -150,10 +150,13 @@ class ResDF(pd.DataFrame):
 
         table_name = {}
 
-        for k, kept in filters.get('keep', {}).items():
+        keep = filters.get('keep', {})
+        remove = filters.get('remove', {})
+        for k in set(keep) | set(remove):
+            kept = keep.get(k)
             if kept:
                 table_name[k] = '+'.join(map(str, kept))
-            removed = filters.get('removed', {}).get(k)
+            removed = remove.get(k)
             if removed:
                 table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
 
@@ -346,6 +349,7 @@ class ResDF(pd.DataFrame):
 
                 if op == 'max':
                     idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
+
                 elif op == 'min':
                     idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
 
@@ -471,7 +475,7 @@ class ResDF(pd.DataFrame):
 
     def print(self,
               columns=None,
-              show_dropped=True,
+              list_dropped=True,
               list_values=None, max_length=200,
               na_rep='--',
               float_format='{:.3g}'.format,
@@ -504,11 +508,15 @@ class ResDF(pd.DataFrame):
             raise ValueError
 
         (self.result_directory / subdir).mkdir(exist_ok=True)
-        self.to_csv(self.result_directory / subdir / (name + '.csv'))
+        csv_path = self.result_directory / subdir / (name + '.csv')
+        self.to_csv(csv_path)
+        logger.info('Table of length {} with index of width {} saved in {}'.format(len(self),
+                                                                                   len(self.index.names),
+                                                                                   csv_path))
 
         if len(self) > max_length:
-            logger.error('Table too long ({}>{}) '.format(len(self), max_length))
-            logger.error('Table index: {}'.format(' '.join(self.index.names)))
+            logger.warning('Table too long ({}>{}) '.format(len(self), max_length))
+            logger.info('Table index: {}'.format(' '.join(self.index.names)))
             raise ValueError
 
         if list_values:
@@ -531,7 +539,7 @@ class ResDF(pd.DataFrame):
         print(df_str)
 
         df_str = ''
-        if show_dropped:
+        if list_dropped:
             df_str += ''
             df_str += '-' * df_width
             for k, index in self._dropped_index.items():

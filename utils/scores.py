@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.stats import stattools
 from scipy import stats
+from sklearn.metrics import roc_auc_score
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,7 @@ def compute_scores_stats(df, compute=True, q=dict(),
             if 'FPR@95' not in df.loc[idx].index or np.isnan(df.loc[idx, 'FPR@95']):
                 thr = np.quantile(c['id'], 0.05)
                 df.loc[idx, 'FPR@95'] = (c['ood'] > thr).mean() * 100
+                df.loc[idx, 'AUROC'] = 100 * roc_auc_score(label >= 0, conf)
 
     logger.debug('Scores stats calculated in {:.2f}s'.format(time.time() - t0))
 

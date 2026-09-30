@@ -13,8 +13,8 @@ table:
 
   show: []
   drop_unique: True
-  show_dropped: True
-  index_order: [set, net, ..., ood, phase, epoch, date, job]
+  list_dropped: True
+  index_order: [set, net, method, pad_ext, mixes, ..., beta, ood, phase, epochs, it_p, epoch, date, job]
   list_values:
   float_format: '{:.3g}'
 

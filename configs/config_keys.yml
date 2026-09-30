@@ -44,7 +44,7 @@ load:
       ft:
         batch_size: ft_batch_size
         epochs: epochs
-        iterations_per_phase: it/p
+        iterations_per_phase: it_p
         wd: wd
         lr: lr
         beta: beta
