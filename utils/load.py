@@ -12,6 +12,7 @@ OOD_CSV = 'ood.csv'
 CONFIG_YML = 'config.yml'
 CONFIG_KEYS = {'dataset': {'name': 'set'}, 'postprocessor': {'name': 'method'}}
 
+DELETED_PLACEHOLDER = 'deleted'
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
 
     if path.is_dir():
 
-        if (path / 'deleted').exists() and not ignore_deleted:
+        if (path / DELETED_PLACEHOLDER).exists() and not ignore_deleted:
             raise DeleledRes(path)
 
         path = path / ood_csv
@@ -64,6 +65,54 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
     df.set_index('has_scores', append=True, inplace=True)
 
     return df
+
+
+def delete_exp(path, interactive=True, **kw):
+
+    path = Path(path)
+
+    exp = path.name
+
+    try:
+        df_exp(path)
+    except DeleledRes:
+        logger.info('{} already deleted'.format(exp))
+        return
+    except FileNotFoundError:
+        logger.warning('No exp to be deleted found')
+        return
+
+    if not interactive:
+        (path / DELETED_PLACEHOLDER).touch()
+        logger.warning('Exp {} has been (not permanently) deleted'.format(path.name))
+        backup_table_before_reload(**kw)
+
+    user_input = input('Are you sure you want to delete exp {} [yN]: '.format(path.name))
+
+    if user_input != 'y':
+        logger.info('You changed your mind')
+        return
+
+    return delete_exp(path, interactive=False)
+
+
+def backup_table_before_reload(result_directory='./results', **kw):
+
+    table_csv = Path(result_directory) / 'table.csv'
+
+    if not table_csv.exists():
+        logger.info('No table to backup in {}'.format(result_directory))
+        return
+
+    table_csv_bak = table_csv.with_suffix('.csv.bak')
+
+    i = 1
+    while table_csv_bak.exists():
+        table_csv_bak = table_csv.with_suffix('.csv.bak.{}'.format(i))
+        i += 1
+
+    table_csv.rename(table_csv_bak)
+    logger.info('Table backup as {}'.format(table_csv_bak))
 
 
 def score_paths(path):

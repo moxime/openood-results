@@ -319,6 +319,7 @@ class ResDF(pd.DataFrame):
         for _ in df._dropped_index:
             df.index = df.index.droplevel(_)
 
+        logger.debug('Kept index: {}'.format(', '.join(df.index.names)))
         df._fullindex_frame.index = df.index
 
         df.sort_index(inplace=True)
@@ -335,7 +336,7 @@ class ResDF(pd.DataFrame):
         for i, op_arg in enumerate(ops):
             op, args = op_arg.split(':')[0], op_arg.split(':')[1:]
 
-            if op not in ('min', 'max', 'unstack', 'stack'):
+            if op not in ('min', 'max', 'unstack', 'stack', 'mean'):
                 raise NotImplementedError
 
             if op in ('min', 'max'):
@@ -354,6 +355,15 @@ class ResDF(pd.DataFrame):
                     idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
 
                 agg_df = agg_df.loc[idx.dropna()]
+
+            if op == 'mean':
+                index_names = agg_df.meaningfull_index
+                index_names, last_index = index_names[:-1], index_names[-1]
+                logger.info('Mean along {}'.format(last_index))
+                logger.error('Mean ill implemented, warning')
+                print('***', index_names)
+                agg_df = agg_df.groupby(index_names).mean()
+                print('***')
 
             if op == 'unstack':
                 idx = args[0]
@@ -500,7 +510,7 @@ class ResDF(pd.DataFrame):
         self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
 
         if not len(self):
-            logger.error('Empty table (no index')
+            logger.error('Empty table (no row left after dropping empty ones)')
             raise ValueError
 
         if not len(self.columns):
