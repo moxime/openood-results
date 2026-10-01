@@ -148,7 +148,10 @@ def split_by_column_levels(df, n=1):
 
 def plot_x(df, *columns,
            split_levels=0,
-           axes=None,  subdir='plots', **kw):
+           axes=None,
+           subdir='plots',
+           logx: False,
+           **kw):
 
     for column in columns:
         if column not in df:
@@ -181,7 +184,7 @@ def plot_x(df, *columns,
 
     axes.new_fig(nsubplots=len(dfs), suptitle='{}:{}'.format(x, '-'.join(columns)))
     for t, df in dfs.items():
-        df.plot(ax=next(axes), xlabel=x, title=t)
+        df.plot(ax=next(axes), xlabel=x, title=t, logx=logx)
     logger.debug('Plotting metrics for x={}'.format(x))
 
 

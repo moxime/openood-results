@@ -73,6 +73,7 @@ table:
       bins: 200
       histtype: step
     subdir: plots
+    logx: False
       
   tex:
     filename: '' #/tmp/table.tex
