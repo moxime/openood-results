@@ -18,7 +18,6 @@ if __name__ == "__main__" and __package__ is None:
 
 def main():
     from pathlib import Path
-    import pandas as pd
     from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
 
     config = ConfigDict(config_root='default')

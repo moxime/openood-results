@@ -1,15 +1,25 @@
 import time
-from .table import ResDF
+from functools import wraps
 import logging
+import warnings
 from pathlib import Path
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 from statsmodels.stats import stattools
 from scipy import stats
 from sklearn.metrics import roc_auc_score
+from pandas.errors import PerformanceWarning
+
 
 logger = logging.getLogger(__name__)
+
+
+def ignore_pandas_performance_warning(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", PerformanceWarning)
+            return func(*args, **kwargs)
+    return wrapper
 
 
 def has_scores(df, **kw):
@@ -44,6 +54,7 @@ def get_scores(df, **kw):
             yield idx, idx_str, {_: np.load(results[_]) for _ in results}
 
 
+@ignore_pandas_performance_warning
 def compute_scores_stats(df, compute=True, q=dict(),
                          fisher=True, max_compute=10, update_fpr=True, **kw):
 

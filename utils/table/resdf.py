@@ -174,6 +174,7 @@ class ResDF(pd.DataFrame):
     @inplaceable
     def sort_index(self, *a, **kw):
 
+        logger.debug('Sorting table')
         self._fullindex_frame.sort_index(*a, **kw)
         super().sort_index(*a, **kw)
 

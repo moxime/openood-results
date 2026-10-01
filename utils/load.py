@@ -251,6 +251,7 @@ def df_exp(path, root='./results', config_keys={'foo': 'bar'}, **kw):
         df['path'] = path
     df.set_index('path', append=True, inplace=True)
     logger.debug('df ({}) filled up with {} indexes'.format(len(df), len(parsed_config)))
+
     return df
 
 
