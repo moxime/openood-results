@@ -67,7 +67,7 @@ def read_csv(path, ood_csv=OOD_CSV, csv_index={'dataset': 'ood', 'epoch': 'epoch
     return df
 
 
-def delete_exp(path, interactive=True, **kw):
+def delete_exp(path, interactive=True, backup_table=True, **kw):
 
     path = Path(path)
 
@@ -85,7 +85,8 @@ def delete_exp(path, interactive=True, **kw):
     if not interactive:
         (path / DELETED_PLACEHOLDER).touch()
         logger.warning('Exp {} has been (not permanently) deleted'.format(path.name))
-        backup_table_before_reload(**kw)
+        if backup_table:
+            backup_table_before_reload(**kw)
 
     user_input = input('Are you sure you want to delete exp {} [yN]: '.format(path.name))
 
@@ -216,7 +217,46 @@ def sample_config(parsed_config, key, **config_keys):
     yield key, parsed_config
 
 
-def df_exp(path, root='./results', config_keys={'foo': 'bar'}, **kw):
+def populate_far_and_near(df, config, populate=True, metrics=['FPR@95', 'AUROC', 'ACC'], **kw):
+
+    if not populate:
+        return df
+
+    config = config.get('ood_dataset')
+
+    if not config:
+        return df
+
+    if 'ood' not in df.index.names:
+        return df
+
+    df_ = df.reset_index('has_scores').unstack('ood')
+
+    for split in ('farood', 'nearood'):
+        if split not in config:
+            continue
+
+        split_oods = config[split]['datasets']
+        split_cols = df_.columns[df_.columns.isin(split_oods, level='ood')]
+
+        for metric in metrics:
+            metric_cols = split_cols[split_cols.isin([metric], level=0)]
+            metric_cols = metric_cols[metric_cols.isin(split_oods, level='ood')]
+            if not all([_ in metric_cols.get_level_values('ood') for _ in split_oods]):
+                logger.debug('Not all {} in df cols for {}'.format(','.join(split_oods), metric))
+                continue
+            # print('***', metric, metric_cols)
+            # print(df_[metric_cols].head().reset_index(drop=True))
+            df_[(metric, split)] = df_[metric_cols].mean(axis=1)
+            df_[('has_scores', split)] = False
+            logger.debug('Created col ({}, {})'.format(metric, split))
+
+    df = df_.stack('ood', future_stack=True).set_index('has_scores', append=True)
+
+    return df.replace(np.nan, pd.NA)
+
+
+def df_exp(path, root='./results', config_keys={'foo': 'bar'}, far_and_near={}, **kw):
     """
 
     """
@@ -251,6 +291,8 @@ def df_exp(path, root='./results', config_keys={'foo': 'bar'}, **kw):
         df['path'] = path
     df.set_index('path', append=True, inplace=True)
     logger.debug('df ({}) filled up with {} indexes'.format(len(df), len(parsed_config)))
+
+    df = populate_far_and_near(df, config, **far_and_near)
 
     return df
 
@@ -297,6 +339,9 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
     if not flash:
 
         logger.info('Walking through {} for results'.format(result_directory))
+        populate = kw.get('far_and_near', {}).get('populate')
+        logger.info('Will {}populate tables with far and near ood'.format('' if populate
+                                                                          else 'not '))
         list_of_dfs = list(fetch_results(result_directory=result_directory, **kw))
         logger.info('Found {} results in {:.1f}s'.format(len(list_of_dfs), time.time() - t0))
         df = concatenate_df(*list_of_dfs, **kw)

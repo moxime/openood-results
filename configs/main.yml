@@ -35,6 +35,10 @@ load:
     pad_ext: none
     score_path: none
 
+  far_and_near:
+    populate: True
+    metrics: [FPR@95, AUROC, ACC]
+
 args:
   aliases:
     logger.__main__: [--logm]

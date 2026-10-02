@@ -24,14 +24,13 @@ def ignore_pandas_performance_warning(func):
 
 def has_scores(df, **kw):
 
+    # print('***', df.reset_index()[['has_scores', 'ood', 'epoch', 'SCORES', 'AUROC']].to_string())
+
     index = df.fullindex
     index = df.index[index.isin([True], level='has_scores')]
 
     if not len(index):
         logger.error('No scores available')
-
-    if len(index) < len(df):
-        logger.warning('Some scores are not available')
 
     logger.debug('{} results with scores available'.format(len(index)))
     return df.loc[index]

@@ -1,4 +1,5 @@
 table:
+
   exp_index:
     - exp
     - job
@@ -6,10 +7,9 @@ table:
     - workers
     - path
     - has_scores
-  hide:
-    - epoch
     - oods
-    - preproc
+
+  hide: []
 
   show: []
   drop_unique: True

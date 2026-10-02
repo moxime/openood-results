@@ -6,7 +6,7 @@ load:
       normalization_type: preproc
 
     ood_dataset:
-      name: oods
+      # name: oods
       batch_size: batch_size
       val:
         datasets: val

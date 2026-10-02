@@ -45,13 +45,14 @@ def ftype(t):
     return _type
 
 
-def set_with_nan(iterable, return_type=False):
+def set_with_nan(series, return_type=False):
     """To make a set from an iterable with only one nan if any
 
     Rmk: set([a, a, b, nan, nan]) will return {a, b, nan, nan}
 
     """
-    s = set(iterable)
+    s = series.unique()
+    # print(len(series), len(s), list(s)[:10])
     has_nan = False
     dtype = float
 
@@ -59,13 +60,7 @@ def set_with_nan(iterable, return_type=False):
 
         if not isinstance(_, float):
             dtype = type(_)
-            continue
-        if np.isnan(_):
-            s.remove(_)
-            has_nan = True
-
-    if has_nan:
-        s.add(np.nan)
+            break
 
     if not return_type:
         return s
@@ -308,7 +303,7 @@ class ResDF(pd.DataFrame):
 
         for k in df.index.names:
             index_k = df.index.get_level_values(k)
-            values = set_with_nan(index_k)
+            values = index_k.unique()
             if k in show:
                 continue
             if (len(values) == 1 and drop_unique) or k in hidden:
@@ -402,7 +397,10 @@ class ResDF(pd.DataFrame):
         keep_parser = argparse.ArgumentParser()
         rm_parser = argparse.ArgumentParser()
         for name in self.index.names:
+            t0 = time.time()
+            logger.debug('Tick ({})'.format(name))
             values, dtype = set_with_nan(self.index.get_level_values(name), return_type=True)
+            logger.debug('Tock ({:.3f}s)'.format(time.time() - t0))
             values_ = ','.join(map(str, values))
             if len(values_) > 50:
                 values_ = values_[:47]+'...'
@@ -419,14 +417,20 @@ class ResDF(pd.DataFrame):
                                    dest=name,
                                    type=ftype(dtype))
 
+            logger.debug('{} added'.format(name))
         rm_parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
+        rm_parser.add_argument('--delete', action='store_true')
+
         return keep_parser, rm_parser
 
     def _parse_args(self, argv, filters={}, **kw):
         """
         update filters with filter args from argv, return unknown args
         """
+
+        logger.debug('Create parsers')
         keep_parser, rm_parser = self._create_parsers()
+        logger.debug('Parse args')
         keep_args, unknown_args = keep_parser.parse_known_args(argv)
         rm_args, unknown_args = rm_parser.parse_known_args(unknown_args)
         filters.update(keep={k: v for k, v in vars(keep_args).items() if v is not None},
@@ -435,6 +439,7 @@ class ResDF(pd.DataFrame):
         return unknown_args
 
     def filter(self, keep={}, remove={}, **kw):
+        logger.debug('Start filter')
         for k in set(keep) | set(remove):
             kept = keep.get(k)
             removed = remove.get(k)
@@ -453,6 +458,7 @@ class ResDF(pd.DataFrame):
         t0 = time.time()
         unknown_args = self._parse_args(argv, filters=filters, **kw)
         last = filters.get('remove', {}).pop('last', None)
+        delete = filters.get('remove', {}).pop('delete', None)
 
         # filters has been updated
         self.filter(**filters)
@@ -460,6 +466,18 @@ class ResDF(pd.DataFrame):
         if last:
             self.reorder_index_levels(index_order=['date', 'job'])
             self.drop(self.index[:-last], inplace=True)
+
+        if delete:
+            paths = self.index.get_level_values('path').unique()
+
+            backup_table = True
+            for p in paths:
+                # delete_exp(self.result_directory/p,
+                #            backup_table=backup_table,
+                #            result_directory=self.result_directory)
+                backup_table = False
+
+            logger.warning('Jobs removed, but you to reload table')
 
         logger.info('Filtered table of length {} in {:.1f}s'.format(len(self), time.time() - t0))
 
