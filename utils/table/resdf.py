@@ -1,4 +1,5 @@
 from ..configdict import ConfigDict
+from ..load import delete_exp
 from .logger import logger
 import time
 import re
@@ -472,10 +473,9 @@ class ResDF(pd.DataFrame):
 
             backup_table = True
             for p in paths:
-                # delete_exp(self.result_directory/p,
-                #            backup_table=backup_table,
-                #            result_directory=self.result_directory)
-                backup_table = False
+                backup_table &= not delete_exp(self.result_directory/p,
+                                               backup_table=backup_table,
+                                               result_directory=self.result_directory)
 
             logger.warning('Jobs removed, but you to reload table')
 

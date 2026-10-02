@@ -18,7 +18,7 @@ if __name__ == "__main__" and __package__ is None:
 
 def main():
     from pathlib import Path
-    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats
+    from .utils import ConfigDict, set_loggers, df_results, plot_scores, compute_scores_stats, ResDF
 
     config = ConfigDict(config_root='default')
 
@@ -33,6 +33,9 @@ def main():
 
     try:
         df = df_results(**config.load)
+        df = ResDF(df)
+        df.result_directory = config.load.result_directory
+
     except ValueError as e:
         logger.error('No results to be loaded in {}'.format(config.load.result_directory))
         logger.debug(e)

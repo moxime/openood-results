@@ -6,7 +6,6 @@ from pathlib import Path
 from collections import defaultdict
 import numpy as np
 import pandas as pd
-from .table import ResDF
 
 OOD_CSV = 'ood.csv'
 CONFIG_YML = 'config.yml'
@@ -77,24 +76,25 @@ def delete_exp(path, interactive=True, backup_table=True, **kw):
         df_exp(path)
     except DeleledRes:
         logger.info('{} already deleted'.format(exp))
-        return
+        return False
     except FileNotFoundError:
         logger.warning('No exp to be deleted found')
-        return
+        return False
 
     if not interactive:
         (path / DELETED_PLACEHOLDER).touch()
         logger.warning('Exp {} has been (not permanently) deleted'.format(path.name))
         if backup_table:
             backup_table_before_reload(**kw)
+        return True
 
     user_input = input('Are you sure you want to delete exp {} [yN]: '.format(path.name))
 
     if user_input != 'y':
         logger.info('You changed your mind')
-        return
+        return False
 
-    return delete_exp(path, interactive=False)
+    return delete_exp(path, interactive=False, backup_table=backup_table, **kw)
 
 
 def backup_table_before_reload(result_directory='./results', **kw):
@@ -113,7 +113,7 @@ def backup_table_before_reload(result_directory='./results', **kw):
         i += 1
 
     table_csv.rename(table_csv_bak)
-    logger.info('Table backup as {}'.format(table_csv_bak))
+    logger.info('Table backup as {}/{}'.format(result_directory, table_csv_bak))
 
 
 def score_paths(path):
@@ -353,9 +353,6 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
     t0 -= time.time()
 
     logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
-
-    df = ResDF(df)
-    df.result_directory = result_directory
 
     return df
 
