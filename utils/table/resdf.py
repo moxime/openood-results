@@ -508,6 +508,7 @@ class ResDF(pd.DataFrame):
               list_values=None, max_length=200,
               na_rep='--',
               float_format='{:.3g}'.format,
+              empty_rows=False,
               name=None,
               subdir='tables',
               **kw):
@@ -525,8 +526,9 @@ class ResDF(pd.DataFrame):
         removed_cols = [_ for _ in self.columns if not any(re.match(f, _) for f in columns)]
         self.drop(removed_cols, axis='columns', inplace=True)
 
-        self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
-        self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
+        if not empty_rows:
+            self.drop(self.index[self.isnull().all(axis=1)], axis=0, inplace=True)
+            self.drop(self.columns[self.isnull().all(axis=0)], axis=1,  inplace=True)
 
         if not len(self):
             logger.error('Empty table (no row left after dropping empty ones)')

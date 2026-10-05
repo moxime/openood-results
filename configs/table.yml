@@ -17,6 +17,7 @@ table:
   index_order: [set, net, method, pad_ext, mixes, ..., beta, ood, phase, epochs, it_p, epoch, date, job]
   list_values:
   float_format: '{:.3g}'
+  empty_rows: False
 
   max_length: 200
     
