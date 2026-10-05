@@ -1,5 +1,6 @@
 from ..configdict import ConfigDict
 from ..load import delete_exp
+from .ops import do_op
 from .logger import logger
 import time
 import re
@@ -328,51 +329,50 @@ class ResDF(pd.DataFrame):
 
     def op(self, ops=[], **kw):
 
-        agg_df = self
+        res_df = self
 
         for i, op_arg in enumerate(ops):
             op, args = op_arg.split(':')[0], op_arg.split(':')[1:]
 
-            if op not in ('min', 'max', 'unstack', 'stack', 'mean'):
+            index_names = res_df.meaningfull_index
+            index_names, last_index = index_names[:-1], index_names[-1]
+
+            if op not in ('min', 'max', 'unstack', 'stack', 'mean', 'smooth', 'max_cutoff'):
                 raise NotImplementedError
 
-            if op in ('min', 'max'):
-                index_names = agg_df.meaningfull_index
-                index_names, last_index = index_names[:-1], index_names[-1]
+            if op in ('min', 'max', 'max_cutoff'):
                 column = args[0]
 
                 logger.info('Agg table: {} of {} wrt {}'.format(op, column, last_index))
 
                 ops[i] = '{}:'.format(last_index) + ops[i]
 
-                if op == 'max':
-                    idx = agg_df[column].groupby(index_names, dropna=False).idxmax()
-
-                elif op == 'min':
-                    idx = agg_df[column].groupby(index_names, dropna=False).idxmin()
-
-                agg_df = agg_df.loc[idx.dropna()]
+                res_df = do_op(res_df, column, index_names, op=op)
 
             if op == 'mean':
-                index_names = agg_df.meaningfull_index
-                index_names, last_index = index_names[:-1], index_names[-1]
                 logger.info('Mean along {}'.format(last_index))
-                logger.error('Mean ill implemented, warning')
-                print('***', index_names)
-                agg_df = agg_df.groupby(index_names).mean()
-                print('***')
+                res_df = do_op(res_df, index_names, op='mean')
 
             if op == 'unstack':
                 idx = args[0]
-                agg_df = agg_df.unstack(idx)
+                res_df = res_df.unstack(idx)
                 logger.info('Unstack {}'.format(idx))
 
             if op == 'stack':
                 col = args[0]
-                agg_df = agg_df.stack(col)
+                res_df = res_df.stack(col)
                 logger.info('Stack {}'.format(col))
 
-        return agg_df
+            if op == 'smooth':
+                column = args[0]
+
+                logger.info('Transform table: {} of {} wrt {}'.format(op, column, last_index))
+
+                ops[i] = '{}:'.format(last_index) + ops[i]
+
+                res_df = do_op(res_df, column, index_names, op=op)
+
+        return res_df
 
     def _filter_index_by_key(self, key, *values, action='keep', inplace=True, **kw):
 
