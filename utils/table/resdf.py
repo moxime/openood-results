@@ -185,6 +185,7 @@ class ResDF(pd.DataFrame):
     def reset_index(self, *a, **kw):
 
         super().reset_index(*a, **kw)
+        self._fullindex_frame.index = self.index
 
     @inplaceable
     def drop(self, labels=None, **kw):
@@ -211,7 +212,9 @@ class ResDF(pd.DataFrame):
         self.columns = pd.MultiIndex.from_tuples([_.split('--') for _ in self.columns])
         self.columns.names = colnames
 
-    def unstack(self, iname):
+    def unstack(self, iname, reset_first=[]):
+        if reset_first:
+            return self.reset_index(reset_first).unstack(iname)
         self._unflatten_column()
         d = type(self)(super().unstack(iname))
         d._attrfrom(self)
@@ -222,7 +225,7 @@ class ResDF(pd.DataFrame):
 
         return d
 
-    def stack(self, colname):
+    def stack(self, colname, set_after=[]):
 
         self._unflatten_column()
 
@@ -234,7 +237,7 @@ class ResDF(pd.DataFrame):
         self._flatten_column()
         df._flatten_column()
 
-        return df
+        return df.set_index(set_after, append=True) if set_after else df
 
     @property
     def fullindex(self):
@@ -355,13 +358,15 @@ class ResDF(pd.DataFrame):
 
             if op == 'unstack':
                 idx = args[0]
-                res_df = res_df.unstack(idx)
-                logger.info('Unstack {}'.format(idx))
+                reset_first = args[1:]
+                res_df = res_df.unstack(idx, reset_first=reset_first)
+                logger.info('Unstack {} after resetting {}'.format(idx, reset_first))
 
             if op == 'stack':
                 col = args[0]
-                res_df = res_df.stack(col)
-                logger.info('Stack {}'.format(col))
+                set_after = args[1:]
+                res_df = res_df.stack(col, set_after)
+                logger.info('Stack {} and then setting {}'.format(col, set_after))
 
             if op == 'smooth':
                 column = args[0]
