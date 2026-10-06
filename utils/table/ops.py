@@ -14,7 +14,7 @@ def max_or_min_by(df, column, gb_indices, op='max'):
     return df.loc[idx.dropna()]
 
 
-def max_cutoff(df, column, gb_indices, cutoff=0.95):
+def max_cutoff(df, column, gb_indices, cutoff=0.97):
     gb = df[column].groupby(list(gb_indices), dropna=False)
 
     idx = gb.apply(lambda s: s.index[np.flatnonzero(s.to_numpy() >= cutoff * s.max())[0]])
@@ -22,7 +22,7 @@ def max_cutoff(df, column, gb_indices, cutoff=0.95):
     return df.loc[idx.dropna()]
 
 
-def smooth(df, column, gb_indices, n=5, **kw):
+def smooth(df, column, gb_indices, n=3, **kw):
 
     def smooth_col(x):
         return x.rolling(n, center=True, min_periods=1, win_type='hamming').mean()

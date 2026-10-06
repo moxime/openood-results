@@ -352,7 +352,9 @@ def df_results(result_directory='./results', parse_dates=['date'], flash=False, 
 
     t0 -= time.time()
 
-    logger.info('Loaded {} lines in {:.1f}s'.format(len(df), -t0))
+    logger.info('Loaded {}x{} table in {:.1f}s'.format(len(df),
+                                                       len(df.columns) + len(df.index.names),
+                                                       -t0))
 
     return df
 
