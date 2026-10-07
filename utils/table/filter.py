@@ -252,7 +252,7 @@ class AndFilter(Filter):
 
     def __new__(cls, *filters, identity=TrueFilter(), **kw):
 
-        filters_ = [list(f.filters) if isinstance(f, cls) and not f._negation else [f]
+        filters_ = [list(f.filters) if type(f) == cls and not f._negation else [f]
                     for f in filters]
         filters = sum(filters_, [])
 
@@ -272,7 +272,7 @@ class AndFilter(Filter):
 
     def __init__(self, *filters, identity=TrueFilter(), **kw):
 
-        filters_ = [list(f.filters) if isinstance(f, type(self)) and not f._negation else [f]
+        filters_ = [list(f.filters) if type(f) == type(self) and not f._negation else [f]
                     for f in filters]
         filters = sum(filters_, [])
         while identity in filters:
