@@ -167,10 +167,14 @@ class Filter(ABC):
 
     def __or__(self, val):
 
+        if isinstance(val, str):
+            return self | IndexFilter(val)
         return OrFilter(self, val)
 
     def __and__(self, val):
 
+        if isinstance(val, str):
+            return self & IndexFilter(val)
         return AndFilter(self, val)
 
     def __neg__(self):
@@ -178,6 +182,8 @@ class Filter(ABC):
 
     def __sub__(self, val):
 
+        if isinstance(val, str):
+            return self & (-IndexFilter(val))
         return self & (-val)
 
     def __add__(self, val):
@@ -252,37 +258,41 @@ class AndFilter(Filter):
 
     def __new__(cls, *filters, identity=TrueFilter(), **kw):
 
-        filters_ = [list(f.filters) if type(f) == cls and not f._negation else [f]
-                    for f in filters]
-        filters = sum(filters_, [])
-
-        if identity.neg() in filters:
-            return identity.neg()
-
-        while identity in filters:
-            filters.remove(identity)
-
-        if not filters:
-            return identity
+        filters = cls._clean_filters(identity, *filters)
 
         if len(set(filters)) == 1:
-            return filters[0].copy()
+            return filters.pop()
 
         return super().__new__(cls)
 
     def __init__(self, *filters, identity=TrueFilter(), **kw):
 
-        filters_ = [list(f.filters) if type(f) == type(self) and not f._negation else [f]
-                    for f in filters]
-        filters = sum(filters_, [])
-        while identity in filters:
-            filters.remove(identity)
-
+        assert not kw.get('negation')
         super().__init__(self, ftype=None)
-        self.filters = set(filters)
+        filters = self._clean_filters(identity, *filters)
+        if len(filters) == 1:
+            return
+        self.filters = filters
         self._op_str = '&'
         self._op = all
         self._no_filters_returns = False
+
+    @classmethod
+    def _clean_filters(cls, identity, *filters):
+
+        filters_ = [list(f.filters) if type(f) is cls and not f._negation else [f]
+                    for f in filters]
+        filters = sum(filters_, [])
+
+        if identity.neg() in filters:
+            return set([identity.neg()])
+
+        while identity in filters:
+            filters.remove(identity)
+
+        if not filters:
+            return set([identity])
+        return set(filters)
 
     def match(self, val):
         if not self.filters:
@@ -317,8 +327,9 @@ class AndFilter(Filter):
 
 class OrFilter(AndFilter):
 
-    def __new__(self, *filters, **kw):
-        return super().__new__(self, *filters, identity=TrueFilter().neg())
+    def __new__(cls, *filters, **kw):
+
+        return super().__new__(cls, *filters, identity=TrueFilter().neg(), **kw)
 
     def __init__(self, *filters, **kw):
 
@@ -395,6 +406,12 @@ class FloatFilter(Filter):
 
 def _filter_from_string(s, **kw):
 
+    s = re.sub('\s*&\s*', '&', s)
+    s = re.sub('\s*\|\s*', '|', s)
+
+    if len(s.split()) > 1:
+        return OrFilter(*(_filter_from_string(_s) for _s in s.split()))
+
     assert '&' not in s or '|' not in s
 
     if '&' in s:
@@ -429,7 +446,11 @@ class IndexFilter(Filter):
 
 if __name__ == '__main__':
 
+    import sys
     import utils.logger
+    import argparse
+    from functools import reduce
+    from operator import or_, and_
 
     def test_float():
         for s in ('..', '1 3 4', 'not 1 2', '1..3', 'not ..3', '1', 'not 1'):
@@ -448,10 +469,46 @@ if __name__ == '__main__':
                 print('{}: {}'.format(x, f(x)), end=', ')
             print()
 
-    test_float()
-    test_string()
+    # test_float()
+    # test_string()
 
-    sfilters = [IndexFilter.from_string(_) for _ in ('foo*', '*bar', '1..3')]
+    parser = argparse.ArgumentParser()
 
-    andfilter = AndFilter(*sfilters)
-    orfilter = OrFilter(*sfilters)
+    parser.add_argument('-f', action='append', default=[], nargs='*')
+    parser.add_argument('-f-', action='append', dest='fn', default=[], nargs='*')
+    parser.add_argument('s', nargs='*', default=[None])
+
+    argv = '-f a|b -f 1..3'
+    argv = '-f a|b -f 1..3 -f- foo*'
+    argv = '-f bar baz foo |1..4'
+    argv = '-f a|b c'
+    argv = '-f a&d b c'
+    argv = '-f *bar -f- foo* -f a&b c'
+    args = parser.parse_args(argv.split() if not sys.argv[0] else None)
+
+    fpos = TrueFilter()
+    for f in args.f:
+        fpos |= f
+
+    fneg = TrueFilter()
+    for f in args.f:
+        fpos |= f
+
+    fpos = reduce(and_,
+                  (reduce(or_, (IndexFilter(_) for _ in f), -TrueFilter()) if f else NoneFilter()
+                   for f in args.f),
+                  TrueFilter())
+
+    fneg = reduce(and_,
+                  (reduce(or_, (IndexFilter(_).neg() for _ in f), -TrueFilter()) if f else -NoneFilter()
+                   for f in args.fn),
+                  TrueFilter())
+
+    print(fpos + fneg)
+
+    for s in args.s:
+        try:
+            s = float(s)
+        except ValueError:
+            pass
+        print('{}: {}'.format(s, (fpos + fneg)(s)))
