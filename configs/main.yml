@@ -38,6 +38,7 @@ load:
   far_and_near:
     populate: True
     metrics: [FPR@95, AUROC, ACC]
+    splits: ['farood', 'nearood']
 
 args:
   aliases:

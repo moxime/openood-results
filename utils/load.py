@@ -217,7 +217,9 @@ def sample_config(parsed_config, key, **config_keys):
     yield key, parsed_config
 
 
-def populate_far_and_near(df, config, populate=True, metrics=['FPR@95', 'AUROC', 'ACC'], **kw):
+def populate_far_and_near(df, config, populate=True,
+                          splits=['farood', 'nearood'],
+                          metrics=['FPR@95', 'AUROC', 'ACC'], **kw):
 
     if not populate:
         return df
@@ -232,11 +234,14 @@ def populate_far_and_near(df, config, populate=True, metrics=['FPR@95', 'AUROC',
 
     df_ = df.reset_index('has_scores').unstack('ood')
 
-    for split in ('farood', 'nearood'):
-        if split not in config:
-            continue
+    oods = {split: config[split]['datasets'] for split in splits if split in config}
 
-        split_oods = config[split]['datasets']
+    if all(_ in oods for _ in splits):
+        oods['average'] = sum([oods[_] for _ in splits], [])
+
+    for split in oods:
+
+        split_oods = oods[split]
         split_cols = df_.columns[df_.columns.isin(split_oods, level='ood')]
 
         for metric in metrics:
