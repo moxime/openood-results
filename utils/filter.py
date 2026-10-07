@@ -61,6 +61,8 @@ class Region(object):
         if self.rtype == 'interval':
             if self.strict and val in self.bounds:
                 return False
+            # print(val, '>=', self.bounds[0], ':', val >= self.bounds[0],
+            #       '<=', self.bounds[1], ':', val <= self.bounds[1])
             return (val >= self.bounds[0]) and (val <= self.bounds[1])
 
     def __call__(self, val):
@@ -96,13 +98,14 @@ class Filter(ABC):
 
     def __call__(self, val):
 
-        if self._type and not isinstance(val, self._type):
-            logger.debug('{} is not of type {} hence returning {}'.format(val,
-                                                                          str(self._type),
-                                                                          self._negation))
-            return self._negation
-
-        return self.match(val) ^ self._negation
+        if self._type:
+            try:
+                return self.match(self._type(val)) ^ self._negation
+            except ValueError:
+                logger.debug('{} is not of type {} hence returning {}'.format(val,
+                                                                              str(self._type),
+                                                                              self._negation))
+        return self._negation
 
     @abstractmethod
     def match(self, val):
@@ -119,7 +122,7 @@ class Filter(ABC):
     @classmethod
     def from_string(cls, s, **kw):
 
-        has_neg, string = re.match('(^\s*not\s+|!\s*)?\s*(.*)', s).groups()
+        has_neg, string = re.match('(^\s*not\s+|\s*!\s*)?\s*(.*)', s).groups()
 
         filter = cls._from_string(string, **kw)
         filter._negation = filter._negation ^ bool(has_neg)
@@ -135,7 +138,7 @@ class Filter(ABC):
 
     def __repr__(self):
 
-        return '!' if self._negation else ''
+        return '!!' if self._negation else ''
 
 
 class AndFilter(Filter):
@@ -144,20 +147,25 @@ class AndFilter(Filter):
 
         super().__init__(self, ftype=None)
         self.filters = filters
-        self._op = '&'
+        self._op_str = '&'
+        self._op = all
+        self._no_filters_returns = False
 
     def match(self, val):
         if not self.filters:
-            return False
+            return self._no_filters_returns
 
-        return all(f(val) for f in self.filters)
+        return self._op(f(val) for f in self.filters)
+
+    def __call__(self, val):
+        return self.match(val)
 
     def copy(self):
         return type(self)(*(f.copy() for f in self.filters), negation=self._negation)
 
     def __repr__(self):
 
-        s = self._op.join(repr(f) for f in self.filters)
+        s = ' {} '.format(self._op_str).join('({})'.format(f) for f in self.filters)
 
         if self._negation:
             return '!({})'.format(s)
@@ -176,25 +184,9 @@ class OrFilter(AndFilter):
         super().__init__(*filters, **kw)
 
         self.filters = filters
-        self._op = '|'
-
-    def match(self, val):
-        if not self.filters:
-            return True
-
-        return any(f(val) for f in self.filters)
-
-    def copy(self):
-        return type(self)(*(f.copy() for f in self.filters), negation=self._negation)
-
-    def __repr__(self):
-
-        s = '|'.join(repr(f.neg()) for f in self.filters)
-
-        if not self._negation:
-            return '!({})'.format(s)
-
-        return s
+        self._op_str = '|'
+        self._op = any
+        self._no_filters_returns = True
 
 
 class NoneFilter(Filter):
@@ -271,46 +263,30 @@ class FloatFilter(Filter):
         return type(self)(region=self.region.copy(), negation=self._negation)
 
 
-class ConfigFilter(Filter):
+def filter_from_string(s, **kw):
 
-    def __init__(self, filter, **kw):
+    assert '&' not in s or '|' not in s
 
-        super().__init__(ftype=filter._type, **kw)
-        assert isinstance(filter, Filter), type(filter)
+    if '&' in s:
+        return AndFilter(*(filter_from_string(_s) for _s in s.split('&')))
 
-        self._filter = filter
-        self._type = filter._type
+    if '|' in s:
+        return OrFilter(*(filter_from_string(_s) for _s in s.split('|')))
 
-        assert not self._type or self._type == self._filter._type
+    if not s.strip():
+        return NoneFilter()
 
-    def __repr__(self):
-        return super().__repr__() + repr(self._filter)
+    try:
+        return FloatFilter.from_string(s.strip())
+    except ValueError:
+        pass
+    return StringFilter.from_string(s.strip())
 
-    def copy(self):
-        return type(self)(filter=self._filter, negation=self._negation)
 
-    def match(self, val):
-        return self._filter.match(val)
+class IndexFilter:
 
-    @classmethod
-    def _from_string(cls, s, **kw):
-
-        assert '&' not in s or '|' not in s
-
-        if '&' in s:
-            return AndFilter(*(cls._from_string(_s) for _s in s.split('&')))
-
-        if '|' in s:
-            return OrFilter(*(cls._from_string(_s) for _s in s.split('|')))
-
-        if not s.strip():
-            return cls(NoneFilter())
-
-        try:
-            return cls(FloatFilter._from_string(s))
-        except ValueError:
-            pass
-        return cls(StringFilter._from_string(s))
+    def __init__(self):
+        pass
 
 
 if __name__ == '__main__':
@@ -337,7 +313,7 @@ if __name__ == '__main__':
     test_float()
     test_string()
 
-    sfilters = [ConfigFilter.from_string(_) for _ in ('foo*', '*bar', '1..3')]
+    sfilters = [IndexFilter.from_string(_) for _ in ('foo*', '*bar', '1..3')]
 
     andfilter = AndFilter(*sfilters)
     orfilter = OrFilter(*sfilters)
