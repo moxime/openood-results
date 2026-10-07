@@ -144,6 +144,10 @@ class Filter(ABC):
     def _from_string(cls, s, **kw):
         raise NotImplementedError
 
+    @property
+    def is_true(self):
+        return False
+
     @classmethod
     def from_string(cls, s, **kw):
 
@@ -205,6 +209,10 @@ class Filter(ABC):
 
 
 class TrueFilter(Filter):
+
+    @property
+    def is_true(self):
+        return True
 
     def match(self, val):
         return True
@@ -309,7 +317,8 @@ class AndFilter(Filter):
 
     def __repr__(self):
 
-        s = ' {} '.format(self._op_str).join('({})'.format(f) for f in self.filters)
+        def sub(f): return '({})'.format(f) if isinstance(f, AndFilter) else '{}'.format(f)
+        s = '{}'.format(self._op_str).join(sub(f) for f in self.filters)
 
         if self._negation:
             return '!({})'.format(s)
@@ -412,13 +421,13 @@ def _filter_from_string(s, **kw):
     if len(s.split()) > 1:
         return OrFilter(*(_filter_from_string(_s) for _s in s.split()))
 
-    assert '&' not in s or '|' not in s
-
-    if '&' in s:
-        return AndFilter(*(_filter_from_string(_s) for _s in s.split('&')))
+    # assert '&' not in s or '|' not in s
 
     if '|' in s:
         return OrFilter(*(_filter_from_string(_s) for _s in s.split('|')))
+
+    if '&' in s:
+        return AndFilter(*(_filter_from_string(_s) for _s in s.split('&')))
 
     s = s.strip()
 
