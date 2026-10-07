@@ -1,7 +1,8 @@
 import logging
 from abc import ABC, abstractmethod, abstractclassmethod
-import numpy as np
 import re
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,21 @@ class Region(object):
 
         return self.is_in(val)
 
+    def __eq__(self, val):
+
+        if not isinstance(val, type(self)):
+            return False
+
+        for attr in ('rtype', 'bounds', 'strict'):
+            if getattr(self, attr) != getattr(val, attr):
+                return False
+
+        return True
+
+    def __hash__(self):
+
+        return hash(tuple((self.bounds, self.rtype)))
+
     def __repr__(self):
 
         if self.rtype == 'nan':
@@ -98,14 +114,23 @@ class Filter(ABC):
 
     def __call__(self, val):
 
-        if self._type:
-            try:
-                return self.match(self._type(val)) ^ self._negation
-            except ValueError:
-                logger.debug('{} is not of type {} hence returning {}'.format(val,
-                                                                              str(self._type),
-                                                                              self._negation))
-        return self._negation
+        if isinstance(val, pd.Index):
+
+            return val.map(lambda x: self(x))
+
+        if not self._type:
+            return self.match(val) ^ self._negation
+
+        if NoneFilter()(val):
+            return self._negation
+
+        try:
+            return self.match(self._type(val)) ^ self._negation
+        except ValueError:
+            logger.debug('{} is not of type {} hence returning {}'.format(val,
+                                                                          str(self._type),
+                                                                          self._negation))
+            return self._negation
 
     @abstractmethod
     def match(self, val):
@@ -138,15 +163,123 @@ class Filter(ABC):
 
     def __repr__(self):
 
-        return '!!' if self._negation else ''
+        return '!' if self._negation else ''
+
+    def __or__(self, val):
+
+        return OrFilter(self, val)
+
+    def __and__(self, val):
+
+        return AndFilter(self, val)
+
+    def __neg__(self):
+        return self.neg()
+
+    def __sub__(self, val):
+
+        return self & (-val)
+
+    def __add__(self, val):
+
+        return self & val
+
+    def __hash__(self):
+        return 0
+
+    def __eq__(self, val):
+
+        if not isinstance(val, type(self)):
+            return False
+
+        if not self._negation == val._negation:
+            return False
+
+        return self._is_same(val)
+
+
+class TrueFilter(Filter):
+
+    def match(self, val):
+        return True
+
+    @classmethod
+    def _from_string(cls):
+        return cls()
+
+    def copy(self):
+        f = type(self)()
+        f._negation = self._negation
+        return f
+
+    def _is_same(self, other):
+
+        return True
+
+    def __repr__(self):
+
+        return 'False' if self._negation else 'True'
+
+
+class NoneFilter(Filter):
+
+    def __init__(self, **kw):
+
+        super().__init__(ftype=None, **kw)
+
+    def match(self, val):
+        if val is pd.NA:
+            return True
+        return val in (None, np.nan)
+
+    def copy(self):
+
+        return type(self)(negation=self._negation)
+
+    @classmethod
+    def _from_string(cls, s):
+        return cls()
+
+    def _is_same(self, other):
+        return True
+
+    def __repr__(self):
+
+        return 'not null' if self._negation else 'null'
 
 
 class AndFilter(Filter):
 
-    def __init__(self, *filters, **kw):
+    def __new__(cls, *filters, identity=TrueFilter(), **kw):
+
+        filters_ = [list(f.filters) if isinstance(f, cls) and not f._negation else [f]
+                    for f in filters]
+        filters = sum(filters_, [])
+
+        if identity.neg() in filters:
+            return identity.neg()
+
+        while identity in filters:
+            filters.remove(identity)
+
+        if not filters:
+            return identity
+
+        if len(set(filters)) == 1:
+            return filters[0].copy()
+
+        return super().__new__(cls)
+
+    def __init__(self, *filters, identity=TrueFilter(), **kw):
+
+        filters_ = [list(f.filters) if isinstance(f, type(self)) and not f._negation else [f]
+                    for f in filters]
+        filters = sum(filters_, [])
+        while identity in filters:
+            filters.remove(identity)
 
         super().__init__(self, ftype=None)
-        self.filters = filters
+        self.filters = set(filters)
         self._op_str = '&'
         self._op = all
         self._no_filters_returns = False
@@ -157,11 +290,12 @@ class AndFilter(Filter):
 
         return self._op(f(val) for f in self.filters)
 
-    def __call__(self, val):
-        return self.match(val)
-
     def copy(self):
         return type(self)(*(f.copy() for f in self.filters), negation=self._negation)
+
+    def neg(self):
+
+        return OrFilter(*(f.neg() for f in self.filters))
 
     def __repr__(self):
 
@@ -176,39 +310,27 @@ class AndFilter(Filter):
     def _from_string(cls, s):
         raise NotImplementedError
 
+    def _is_same(self, other):
+
+        return self.filters == other.filters
+
 
 class OrFilter(AndFilter):
 
+    def __new__(self, *filters, **kw):
+        return super().__new__(self, *filters, identity=TrueFilter().neg())
+
     def __init__(self, *filters, **kw):
 
-        super().__init__(*filters, **kw)
+        super().__init__(*filters, identity=TrueFilter().neg(), **kw)
 
-        self.filters = filters
         self._op_str = '|'
         self._op = any
         self._no_filters_returns = True
 
+    def neg(self):
 
-class NoneFilter(Filter):
-
-    def __init__(self, **kw):
-
-        super().__init__(ftype=None, **kw)
-
-    def match(self, val):
-        return val in (None, np.nan)
-
-    def copy(self):
-
-        return type(self(negation=self._negation))
-
-    @classmethod
-    def _from_string(cls, s):
-        return cls()
-
-    def __repr__(self):
-
-        return super().__repr__() + 'none'
+        return AndFilter(*(f.neg() for f in self.filters))
 
 
 class StringFilter(Filter):
@@ -236,6 +358,10 @@ class StringFilter(Filter):
 
         return super().__repr__() + self.regex
 
+    def _is_same(self, other):
+
+        return self.regex == other.regex
+
 
 class FloatFilter(Filter):
 
@@ -262,31 +388,43 @@ class FloatFilter(Filter):
     def copy(self):
         return type(self)(region=self.region.copy(), negation=self._negation)
 
+    def _is_same(self, other):
 
-def filter_from_string(s, **kw):
+        return self.region == other.region
+
+
+def _filter_from_string(s, **kw):
 
     assert '&' not in s or '|' not in s
 
     if '&' in s:
-        return AndFilter(*(filter_from_string(_s) for _s in s.split('&')))
+        return AndFilter(*(_filter_from_string(_s) for _s in s.split('&')))
 
     if '|' in s:
-        return OrFilter(*(filter_from_string(_s) for _s in s.split('|')))
+        return OrFilter(*(_filter_from_string(_s) for _s in s.split('|')))
 
-    if not s.strip():
-        return NoneFilter()
+    s = s.strip()
+
+    if s in ('', '!'):
+        return NoneFilter.from_string(s)
 
     try:
-        return FloatFilter.from_string(s.strip())
+        return FloatFilter.from_string(s)
     except ValueError:
-        pass
-    return StringFilter.from_string(s.strip())
+        return StringFilter.from_string(s)
 
 
-class IndexFilter:
+class IndexFilter(Filter):
 
-    def __init__(self):
-        pass
+    def __new__(cls, s):
+
+        f = _filter_from_string(s)
+
+        if isinstance(f, AndFilter) and len(f.filters) == 1:
+
+            return -f.filters.pop() if f._negation else f.filters.pop()
+
+        return f
 
 
 if __name__ == '__main__':
