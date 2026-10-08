@@ -1,8 +1,10 @@
 import logging
 from abc import ABC, abstractmethod, abstractclassmethod
+from operator import or_, and_
 import re
 import numpy as np
 import pandas as pd
+import argparse
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +107,7 @@ class Region(object):
 
 class Filter(ABC):
 
-    def __init__(self, *a, ftype=str, negation=False, wrongtype=None, **kw):
+    def __init__(self, *a, ftype=None, negation=False, wrongtype=None, **kw):
 
         logger.debug('ConfigDict init of type {} with ftype {}'.format(type(self), ftype))
         self._type = ftype
@@ -244,7 +246,12 @@ class NoneFilter(Filter):
     def match(self, val):
         if val is pd.NA:
             return True
-        return val in (None, np.nan)
+        try:
+            if np.isnan(val):
+                return True
+        except TypeError:
+            pass
+        return val is None
 
     def copy(self):
 
@@ -453,13 +460,38 @@ class IndexFilter(Filter):
         return f
 
 
+class FilterAddAction(argparse.Action):
+
+    def __init__(self, option_strings, *a, **kw):
+
+        option_strings.extend([_ + '-' for _ in option_strings])
+
+        super().__init__(option_strings, *a, default=TrueFilter(), nargs='*', **kw)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+
+        curfilter = getattr(namespace, self.dest)
+
+        if not values:
+            added_filter = NoneFilter()
+
+        else:
+            added_filter = -TrueFilter()
+            for v in values:
+                added_filter |= v
+
+        setattr(namespace, self.dest, curfilter & (added_filter.neg() if option_string.endswith('-')
+                                                   else added_filter))
+
+
 if __name__ == '__main__':
 
     import sys
-    import utils.logger
+    # import utils.logger
     import argparse
     from functools import reduce
     from operator import or_, and_
+    import pandas as pd
 
     def test_float():
         for s in ('..', '1 3 4', 'not 1 2', '1..3', 'not ..3', '1', 'not 1'):
@@ -481,43 +513,22 @@ if __name__ == '__main__':
     # test_float()
     # test_string()
 
+    index = pd.MultiIndex.from_product((('X', 'Y', pd.NA), (1, 3, pd.NA)), names=['a', 'b'])
+
+    df = pd.DataFrame(range(len(index)), index=index)
+
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-f', action='append', default=[], nargs='*')
-    parser.add_argument('-f-', action='append', dest='fn', default=[], nargs='*')
-    parser.add_argument('s', nargs='*', default=[None])
+    parser.add_argument('-f', dest='f', action=FilterAddAction)
+    parser.add_argument('i')
 
-    argv = '-f a|b -f 1..3'
-    argv = '-f a|b -f 1..3 -f- foo*'
-    argv = '-f bar baz foo |1..4'
-    argv = '-f a|b c'
-    argv = '-f a&d b c'
-    argv = '-f *bar -f- foo* -f a&b c'
-    args = parser.parse_args(argv.split() if not sys.argv[0] else None)
+    args = parser.parse_args()
 
-    fpos = TrueFilter()
-    for f in args.f:
-        fpos |= f
+    print(args.f)
 
-    fneg = TrueFilter()
-    for f in args.f:
-        fpos |= f
-
-    fpos = reduce(and_,
-                  (reduce(or_, (IndexFilter(_) for _ in f), -TrueFilter()) if f else NoneFilter()
-                   for f in args.f),
-                  TrueFilter())
-
-    fneg = reduce(and_,
-                  (reduce(or_, (IndexFilter(_).neg() for _ in f), -TrueFilter()) if f else -NoneFilter()
-                   for f in args.fn),
-                  TrueFilter())
-
-    print(fpos + fneg)
-
-    for s in args.s:
-        try:
-            s = float(s)
-        except ValueError:
-            pass
-        print('{}: {}'.format(s, (fpos + fneg)(s)))
+    idx = df.index[~args.f(df.index.get_level_values(args.i))]
+    print(df)
+    print('***')
+    print(df.drop(idx))
+    # print(fpos - fneg)
+    # print((fpos - fneg).is_true)

@@ -1,5 +1,6 @@
 from ..configdict import ConfigDict
 from ..load import delete_exp
+from .filter import FilterAddAction
 from .ops import do_op
 from .logger import logger
 import time
@@ -147,20 +148,10 @@ class ResDF(pd.DataFrame):
 
         table_name = {}
 
-        keep = filters.get('keep', {})
-        remove = filters.get('remove', {})
-        for k in set(keep) | set(remove):
-            kept = keep.get(k)
-            if kept:
-                table_name[k] = '+'.join(map(str, kept))
-            removed = remove.get(k)
-            if removed:
-                table_name[k] = table_name.get(k, '') + ('-' + '-'.join(map(str, removed)))
+        for k, v in filters.items():
+            table_name[k] = str(v)
 
-        opnames = '--'.join(ops)
-
-        if opnames:
-            opnames = '--' + opnames
+        opnames = '__' + '--'.join(ops) if ops else ''
 
         return '--'.join('{}:{}'.format(k, v) for k, v in table_name.items()) + opnames
 
@@ -379,93 +370,62 @@ class ResDF(pd.DataFrame):
 
         return res_df
 
-    def _filter_index_by_key(self, key, *values, action='keep', inplace=True, **kw):
-
-        if action in ('rm', 'remove'):
-            action = 'remove'
-
-        assert action in ('remove', 'keep')
+    def _filter_index_by_key(self, key, index_filter, inplace=True, **kw):
 
         if key not in self.index.names:
             raise ValueError('{} not in index names ()'.format(key, self.index.names))
 
-        if action == 'keep':
-            return self.drop(self.index[~self.index.isin(values, level=key)], inplace=inplace)
+        drop_mask = ~index_filter(self.index.get_level_values(key))
+        return self.drop(self.index[drop_mask], inplace=inplace)
 
-        return self.drop(self.index[self.index.isin(values, level=key)], inplace=inplace)
-
-    def _create_parsers(self, **kw):
+    def _create_parser(self, **kw):
         """return two parsers for each index of df multliindex (one
         for keep, one for rmove)
 
         """
 
-        keep_parser = argparse.ArgumentParser()
-        rm_parser = argparse.ArgumentParser()
+        filter_parser = argparse.ArgumentParser()
         for name in self.index.names:
-            t0 = time.time()
-            logger.debug('Tick ({})'.format(name))
-            values, dtype = set_with_nan(self.index.get_level_values(name), return_type=True)
-            logger.debug('Tock ({:.3f}s)'.format(time.time() - t0))
-            values_ = ','.join(map(str, values))
-            if len(values_) > 50:
-                values_ = values_[:47]+'...'
 
-            logger.debug('Adding parser argument --{} of type {} '
-                         '({} default values: {})'.format(name, dtype.__name__,
-                                                          len(values), values_))
+            filter_parser.add_argument('--{}'.format(name),
+                                       action=FilterAddAction)
 
-            keep_parser.add_argument('--{}'.format(name), nargs='*',
-                                     dest=name,
-                                     type=ftype(dtype))
+            logger.debug('--{} and --{}- option added'.format(name, name))
+        filter_parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
+        filter_parser.add_argument('--delete', action='store_true')
 
-            rm_parser.add_argument('--{}-'.format(name), nargs='*',
-                                   dest=name,
-                                   type=ftype(dtype))
-
-            logger.debug('{} added'.format(name))
-        rm_parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
-        rm_parser.add_argument('--delete', action='store_true')
-
-        return keep_parser, rm_parser
+        return filter_parser
 
     def _parse_args(self, argv, filters={}, **kw):
         """
         update filters with filter args from argv, return unknown args
         """
 
-        logger.debug('Create parsers')
-        keep_parser, rm_parser = self._create_parsers()
+        logger.debug('Create parser')
+        parser = self._create_parser()
         logger.debug('Parse args')
-        keep_args, unknown_args = keep_parser.parse_known_args(argv)
-        rm_args, unknown_args = rm_parser.parse_known_args(unknown_args)
-        filters.update(keep={k: v for k, v in vars(keep_args).items() if v is not None},
-                       remove={k: v for k, v in vars(rm_args).items() if v is not None})
+        args, unknown_args = parser.parse_known_args(argv)
+        filters.update({k: v for k, v in vars(args).items() if k in self.index.names and not v.is_true}),
 
         return unknown_args
 
-    def filter(self, keep={}, remove={}, **kw):
+    def filter(self, **kw):
         logger.debug('Start filter')
-        for k in set(keep) | set(remove):
-            kept = keep.get(k)
-            removed = remove.get(k)
+        for k, f in kw.items():
             df_len = len(self)
             values_before = set(self.index.get_level_values(k))
-            if kept is not None:
-                self._filter_index_by_key(k, *kept)
-            if removed is not None:
-                self._filter_index_by_key(k, *removed, action='remove')
+            self._filter_index_by_key(k, f)
             values = set(self.index.get_level_values(k))
             logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
-                                                         kept if len(values) < len(values_before) else ''))
+                                                         values if len(values) < len(values_before) else ''))
 
     def filter_parse_args(self, argv=None, filters={}, **kw):
 
         t0 = time.time()
         unknown_args = self._parse_args(argv, filters=filters, **kw)
-        last = filters.get('remove', {}).pop('last', None)
-        delete = filters.get('remove', {}).pop('delete', None)
-
+        last = filters.pop('last', None)
+        delete = filters.pop('delete', None)
+        filters.pop('__placeholder__', None)
         # filters has been updated
         self.filter(**filters)
 
