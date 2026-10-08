@@ -1,6 +1,6 @@
 from ..configdict import ConfigDict
 from ..load import delete_exp
-from .filter import FilterAddAction, IndexFilter
+from .filter import FilterAddAction, IndexFilter, Filter
 from .ops import do_op
 from .logger import logger
 import time
@@ -409,7 +409,7 @@ class ResDF(pd.DataFrame):
         parser = self._create_parser()
         logger.debug('Parse args')
         args, unknown_args = parser.parse_known_args(argv)
-        filters.update({k: v for k, v in vars(args).items() if k in self.index.names and not v.is_true}),
+        filters.update({k: v for k, v in vars(args).items() if not isinstance(v, Filter) or not v.is_true})
 
         return unknown_args
 
