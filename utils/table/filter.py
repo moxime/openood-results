@@ -9,7 +9,8 @@ import argparse
 logger = logging.getLogger(__name__)
 
 
-interval_regexp = re.compile('([^\.]*)\.{2,}([^\.]*)')
+# interval_regexp = re.compile('([1-9^\.]*)\.{2,}([^\.]*)')
+interval_regexp = re.compile(r'^(-?\d+(?:\.\d*)?)?\.{2,}(-?\d+(?:\.\d*)?)?$')
 
 
 class WrongTypeError(ValueError):
@@ -375,7 +376,8 @@ class StringFilter(Filter):
     def _from_string(cls, s, **kw):
 
         logger.debug('Parsing {} to make it a regex'.format(s))
-        regex = '|'.join(s.replace('*', '.*').split())
+        # regex = '|'.join(s.replace('*', '.*').split())
+        regex = '|'.join(s.split())
         return cls(regex, **kw)
 
     def copy(self):
@@ -420,7 +422,12 @@ class FloatFilter(Filter):
         return self.region == other.region
 
 
-def _filter_from_string(s, **kw):
+def _filter_from_string(s=False, **kw):
+
+    if s is True:
+        return TrueFilter()
+    if s is False:
+        return -TrueFilter()
 
     s = re.sub('\s*&\s*', '&', s)
     s = re.sub('\s*\|\s*', '|', s)

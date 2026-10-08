@@ -1,6 +1,6 @@
 from ..configdict import ConfigDict
 from ..load import delete_exp
-from .filter import FilterAddAction
+from .filter import FilterAddAction, IndexFilter
 from .ops import do_op
 from .logger import logger
 import time
@@ -372,6 +372,10 @@ class ResDF(pd.DataFrame):
 
     def _filter_index_by_key(self, key, index_filter, inplace=True, **kw):
 
+        if key.endswith('-'):
+            key = key[:-1]
+            index_filter = -index_filter
+
         if key not in self.index.names:
             raise ValueError('{} not in index names ()'.format(key, self.index.names))
 
@@ -411,7 +415,17 @@ class ResDF(pd.DataFrame):
 
     def filter(self, **kw):
         logger.debug('Start filter')
+        # for k, v in kw.items():
+        #     print(k, v, type(v))
         for k, f in kw.items():
+            if isinstance(f, list):
+                f_ = IndexFilter(f[0])
+                for _ in f:
+                    f_ |= _
+                f = f_
+            if k.endswith('-'):
+                k = k[:-1]
+                f = f = -f
             df_len = len(self)
             values_before = set(self.index.get_level_values(k))
             self._filter_index_by_key(k, f)
