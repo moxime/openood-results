@@ -1,0 +1,34 @@
+concat: [ood, val]
+
+
+val:
+
+  hide: [phase]
+
+  filters:
+    partial: [-1.]
+    ood: [val]
+    phase-: [2end]
+
+  ops: [max:fisher]
+
+
+ood:
+
+  hide: [phase]
+
+  filters:
+    partial: [0., 1.]
+    ood-: [val]    
+    phase: [2end]
+
+    
+full:
+
+  columns: [fpr--.*, auc--.*, fisher--.*, fpr, auc, fisher, it_p--.*, partial--.*] 
+
+  hide: [phase, epoch, partial, mixes] #, it_p]
+  show: [ood]
+
+  ops: [unstack:ood:it_p]
+   

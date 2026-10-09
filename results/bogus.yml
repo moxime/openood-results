@@ -1,0 +1,14 @@
+concat: [bogus]
+
+
+bogus:
+
+  hide: [phase]
+
+  filters:
+    ood: [.*_mixou]
+    ood-: [old_mix]
+    method-: [.*_dist]
+    method: [ft_.*]
+    beta: [0..3]
+    beta-: [0.5..1]

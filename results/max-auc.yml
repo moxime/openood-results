@@ -1,0 +1,16 @@
+concat: [ood]
+
+ood:
+  filters:
+    keep:
+      phase: [2end]
+    remove:
+      ood: [val]    
+
+full:
+
+  columns: [fpr--.*, auc--.*, fisher--.*, fpr, auc] 
+  hide: [phase, epoch]
+  show: [ood]
+  ops: [max:auc]
+   

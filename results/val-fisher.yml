@@ -1,0 +1,17 @@
+concat: [val]
+val:
+  filters:
+    keep:
+      ood: [val]
+      net: [resnet18_32x32]
+      ood_period: [1]
+      ood_ratio: [0.1]
+      mixes: [old_mix]
+    remove:
+      phase: [2end]
+    
+full:
+  columns: [fisher] 
+  hide: [phase]
+  show: [method, set]
+   
