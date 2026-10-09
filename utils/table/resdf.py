@@ -328,20 +328,25 @@ class ResDF(pd.DataFrame):
         for i, op_arg in enumerate(ops):
             op, args = op_arg.split(':')[0], op_arg.split(':')[1:]
 
-            index_names = res_df.meaningfull_index
-            index_names, last_index = index_names[:-1], index_names[-1]
-
             if op not in ('min', 'max', 'unstack', 'stack', 'mean', 'smooth', 'max_cutoff'):
                 raise NotImplementedError
 
             if op in ('min', 'max', 'max_cutoff'):
                 column = args[0]
+                res_df = res_df.loc[res_df.index[~res_df[column].isnull()]]
+
+                index_names = res_df.meaningfull_index
+                index_names, last_index = index_names[:-1], index_names[-1]
 
                 logger.info('Agg table: {} of {} wrt {}'.format(op, column, last_index))
 
                 ops[i] = '{}:'.format(last_index) + ops[i]
 
                 res_df = do_op(res_df, column, index_names, op=op)
+
+                continue
+
+            index_names = res_df.meaningfull_index[-1]
 
             if op == 'mean':
                 logger.info('Mean along {}'.format(last_index))
@@ -372,6 +377,8 @@ class ResDF(pd.DataFrame):
 
     def _filter_index_by_key(self, key, index_filter, inplace=True, **kw):
 
+        if not len(self):
+            return self
         if key.endswith('-'):
             key = key[:-1]
             index_filter = -index_filter
@@ -419,9 +426,9 @@ class ResDF(pd.DataFrame):
         #     print(k, v, type(v))
         for k, f in kw.items():
             if isinstance(f, list):
-                f_ = IndexFilter(f[0])
+                f_ = IndexFilter(False)
                 for _ in f:
-                    f_ |= _
+                    f_ |= str(_)
                 f = f_
             if k.endswith('-'):
                 k = k[:-1]

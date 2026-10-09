@@ -429,8 +429,7 @@ def _filter_from_string(s=False, **kw):
     if s is False:
         return -TrueFilter()
 
-    s = re.sub('\s*&\s*', '&', s)
-    s = re.sub('\s*\|\s*', '|', s)
+    s = str(s)
 
     if len(s.split()) > 1:
         return OrFilter(*(_filter_from_string(_s) for _s in s.split()))
