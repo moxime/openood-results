@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -123,8 +124,10 @@ def plot_hist(df, max_plots=3, **kw):
         conf = scores['conf']
         label = scores['label']
 
-        ax.hist(conf[label >= 0], **hist_kw)
-        ax.hist(conf[label < 0], **hist_kw)
+        ax.hist(conf[label >= 0], **hist_kw, label='ind')
+        for ood_label in np.unique(label[label < 0]):
+            ax.hist(conf[label == ood_label], **hist_kw, label='ood {}'.format(ood_label))
+        ax.legend()
         fig.show()
 
 

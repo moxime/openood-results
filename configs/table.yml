@@ -34,7 +34,7 @@ table:
     ACC: acc
     AUPR_IN: aupr_in
     AUPR_OUT: aupr_out
-    SCORES: scores
+    SCORES: SCORES
     ID_Q: id_q
     OOD_Q: ood_q
     ID_MEAN: id
@@ -76,6 +76,7 @@ table:
     hist_params:
       bins: 200
       histtype: step
+      density: True
     subdir: plots
     logx: False
       

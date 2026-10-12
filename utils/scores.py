@@ -45,7 +45,6 @@ def get_scores(df, **kw):
             idx_str = str(idx)
         else:
             idx_str = ' '.join('{}:{}'.format(n, v) for n, v in zip(df.index.names, idx))
-
         if isinstance(results['SCORES'], (str, Path)):
             yield idx, idx_str, np.load(results['SCORES'])
         else:
