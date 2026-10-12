@@ -2,15 +2,13 @@ concat: [ood]
 
 ood:
   filters:
-    keep:
-      phase: [2end]
-    remove:
-      ood: [val]    
+    phase: [2end]
+    ood-: [val]    
 
 full:
 
   columns: [fpr--.*, auc--.*, fisher--.*, fpr, auc] 
   hide: [phase, epoch]
-  show: [ood]
-  ops: [max:auc]
+  hide: [mixes, phase, epoch, partial] #, it_p]
+  ops: [unstack:ood, max:auc--average, stack:ood]
    

@@ -113,7 +113,7 @@ def backup_table_before_reload(result_directory='./results', **kw):
         i += 1
 
     table_csv.rename(table_csv_bak)
-    logger.info('Table backup as {}/{}'.format(result_directory, table_csv_bak))
+    logger.info('Table backup as {}'.format(result_directory, table_csv_bak))
 
 
 def score_paths(path):

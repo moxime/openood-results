@@ -1,5 +1,8 @@
 table:
 
+  manage:
+    delete: False
+  
   exp_index:
     - exp
     - job
@@ -7,7 +10,7 @@ table:
     - workers
     - path
     - has_scores
-    - oods
+    # - oods
 
   hide: []
 

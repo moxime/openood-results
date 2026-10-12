@@ -186,6 +186,25 @@ class ResDF(pd.DataFrame):
         super().drop(labels, **kw)
         self._meaningfull_index = list(self.index.names)
 
+    def manage(self, delete=False):
+        if delete:
+            paths = self.fullindex.get_level_values('path').unique()
+
+            backup_table = True
+            deleted = []
+            for p in paths:
+                is_deleted = delete_exp(self.result_directory/p,
+                                        backup_table=backup_table,
+                                        result_directory=self.result_directory)
+
+                backup_table &= not is_deleted
+                if is_deleted:
+                    deleted.append(p)
+            if deleted:
+                drop_idx = self.index[self.fullindex.isin(deleted, level='path')]
+                self.drop(drop_idx, inplace=True)
+            return bool(deleted)
+
     def _flatten_column(self):
 
         if not isinstance(self.columns, pd.MultiIndex):
@@ -297,6 +316,10 @@ class ResDF(pd.DataFrame):
 
         hidden = set(df.index.names) & (set(hide) | set(exp_index))
 
+        unknown = (set(hide) | set(exp_index) | set(show)) - set(df.index.names)
+        if unknown:
+            logger.error('Unknown index: {} (ignored)'.format(','.join(map(str, unknown))))
+
         for k in df.index.names:
             index_k = df.index.get_level_values(k)
             values = index_k.unique()
@@ -339,6 +362,8 @@ class ResDF(pd.DataFrame):
                 index_names, last_index = index_names[:-1], index_names[-1]
 
                 logger.info('Agg table: {} of {} wrt {}'.format(op, column, last_index))
+                logger.debug('Table index: {}'.format(res_df.index.names))
+                logger.debug('Table meaningful index: {}+{}'.format(index_names, last_index))
 
                 ops[i] = '{}:'.format(last_index) + ops[i]
 
@@ -403,7 +428,6 @@ class ResDF(pd.DataFrame):
 
             logger.debug('--{} and --{}- option added'.format(name, name))
         filter_parser.add_argument('--last', nargs='?', default=0, const=10, type=int)
-        filter_parser.add_argument('--delete', action='store_true')
 
         return filter_parser
 
@@ -437,15 +461,18 @@ class ResDF(pd.DataFrame):
             values_before = set(self.index.get_level_values(k))
             self._filter_index_by_key(k, f)
             values = set(self.index.get_level_values(k))
-            logger.debug('Filtering {} {}->{} {}'.format(k, df_len, len(self),
-                                                         values if len(values) < len(values_before) else ''))
+            removed = len(values) < len(values_before)
+            values_str = ','.join(map(str, values)) if removed else ''
+            logger.debug('Filtering with {f} [{f_t}] {k} {N}->{n} {v}'.format(k=k, N=df_len, n=len(self),
+                                                                              v=values_str,
+                                                                              f=f,
+                                                                              f_t=type(f).__name__))
 
-    def filter_parse_args(self, argv=None, filters={}, **kw):
+    def filter_parse_args(self, argv=None, filters={},  **kw):
 
         t0 = time.time()
         unknown_args = self._parse_args(argv, filters=filters, **kw)
         last = filters.pop('last', None)
-        delete = filters.pop('delete', None)
         filters.pop('__placeholder__', None)
         # filters has been updated
         self.filter(**filters)
@@ -453,17 +480,6 @@ class ResDF(pd.DataFrame):
         if last:
             self.reorder_index_levels(index_order=['date', 'job'])
             self.drop(self.index[:-last], inplace=True)
-
-        if delete:
-            paths = self.index.get_level_values('path').unique()
-
-            backup_table = True
-            for p in paths:
-                backup_table &= not delete_exp(self.result_directory/p,
-                                               backup_table=backup_table,
-                                               result_directory=self.result_directory)
-
-            logger.warning('Jobs removed, but you to reload table')
 
         logger.info('Filtered table of length {} in {:.1f}s'.format(len(self), time.time() - t0))
 
@@ -497,6 +513,7 @@ class ResDF(pd.DataFrame):
               empty_rows=False,
               name=None,
               subdir='tables',
+              manage={},
               **kw):
 
         if len(self) == 0:
@@ -567,6 +584,19 @@ class ResDF(pd.DataFrame):
                     df_str += '\n{:16} {}'.format(k, *v)
 
             print(df_str, file=sys.stdout)
+
+        if self.manage(**manage):
+            self.print(columns=columns,
+                       list_dropped=False,
+                       list_values=None,
+                       max_length=max_length,
+                       na_rep=na_rep,
+                       float_format=float_format,
+                       empty_rows=empty_rows,
+                       name=name,
+                       subdir=subdir,
+                       manage={},
+                       **kw)
 
     def to_latex(self, filename=None,
                  columns={'FPR@95': 'fpr', 'AUROC': 'auc'},

@@ -22,13 +22,15 @@ ood:
     partial-: [-1.]
     ood-: [val]
     phase: [2end]
+    mixes-: [old_mix]
+    ood_period: [1.]
+    ood_ratio: [0.1]
 
 full:
 
   columns: [fpr--.*, auc--.*, fisher--.*, fpr, auc, fisher] 
 
   hide: [mixes, phase, epoch, partial] #, it_p]
-  show: [ood]
 
-  ops: [unstack:ood:it_p, max:fisher--val] #, stack:ood]
+  ops: [unstack:ood:it_p, max:fisher--val, stack:ood:it_p]
    
