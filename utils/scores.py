@@ -54,6 +54,7 @@ def get_scores(df, **kw):
 
 @ignore_pandas_performance_warning
 def compute_scores_stats(df, compute=True, q=dict(),
+                         cdf=None,
                          fisher=True, max_compute=10, update_fpr=True, **kw):
 
     funcs = {'mean': np.mean, 'std': np.std,
@@ -86,7 +87,7 @@ def compute_scores_stats(df, compute=True, q=dict(),
     for idx, _, scores in get_scores(df):
         conf = scores['conf']
         label = scores['label']
-        label_ = {'id': label >= 0, 'ood': label < 0}
+        label_ = {'id': label >= 0, 'ood': label < 0, 's': np.ones_like(label) > 0}
 
         c = {_: conf[label_[_]] for _ in label_}
 
@@ -111,6 +112,9 @@ def compute_scores_stats(df, compute=True, q=dict(),
                 logger.debug('{} calculated for {} [{}]'.format(stat, _, len(c[_])))
                 func = funcs[stat]
                 df.loc[idx, '{}_{}'.format(_.upper(), stat.upper())] = func(c[_])
+
+            if cdf:
+                df.loc[idx, '{}_CDF'.format(_.upper())] = (c[_] <= cdf).mean()
 
         if fisher and not skip:
             fisher_id_ood = (c['id'].mean() - c['ood'].mean())**2 / (c['id'].var() + c['ood'].var())

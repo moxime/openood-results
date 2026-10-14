@@ -59,7 +59,9 @@ scores:
   compute: True
   q:
     id: 
-    ood: 
+    ood:
+    s:
+  cdf:
   fisher: False
   iqr: []
   mean: []
